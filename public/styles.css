@@ -97,10 +97,10 @@ button.requires-auth {
 .lobby-screen {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(120px, 260px) minmax(360px, 520px) minmax(120px, 260px);
-  gap: 22px;
+  grid-template-columns: minmax(220px, 380px) minmax(360px, 520px) minmax(220px, 380px);
+  gap: clamp(18px, 3vw, 42px);
   place-items: center;
-  padding: 24px;
+  padding: 24px clamp(18px, 3vw, 44px);
   background:
     linear-gradient(#e5eaf1 1px, transparent 1px),
     linear-gradient(90deg, #e5eaf1 1px, transparent 1px),
@@ -111,7 +111,7 @@ button.requires-auth {
 
 .lobby-ad {
   width: 100%;
-  max-width: 260px;
+  max-width: 380px;
   align-self: center;
   opacity: 0.96;
   animation: panelIn 360ms ease both;
@@ -120,7 +120,9 @@ button.requires-auth {
 .lobby-ad img {
   display: block;
   width: 100%;
+  max-height: min(74vh, 620px);
   height: auto;
+  object-fit: contain;
   border: 1px solid rgba(214, 221, 232, 0.95);
   border-radius: 8px;
   background: #fff;
@@ -1163,9 +1165,23 @@ input[type="file"] {
 @media (max-width: 860px) {
   .lobby-screen {
     grid-template-columns: 1fr;
+    align-content: start;
+    gap: 12px;
+    padding: 14px;
   }
 
   .lobby-ad {
+    display: block;
+    max-width: min(100%, 520px);
+    justify-self: center;
+  }
+
+  .lobby-ad img {
+    max-height: 150px;
+    object-fit: contain;
+  }
+
+  .lobby-ad-right {
     display: none;
   }
 
@@ -1184,6 +1200,14 @@ input[type="file"] {
 }
 
 @media (max-width: 520px) {
+  .lobby-ad img {
+    max-height: 118px;
+  }
+
+  .lobby-shell {
+    gap: 12px;
+  }
+
   .side,
   .stage-wrap {
     padding: 12px;
