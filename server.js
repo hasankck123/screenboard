@@ -17,6 +17,10 @@ function normalizeDisplayName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32) || "Misafir";
 }
 
+function normalizeTitle(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 64) || "Canli Ders";
+}
+
 function passwordHash(value) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex");
 }
@@ -53,6 +57,7 @@ function roomFor(id) {
       board: [],
       drawingLocked: false,
       passwordHash: "",
+      title: "Canli Ders",
       presenterId: null,
       updatedAt: Date.now()
     });
@@ -166,6 +171,7 @@ function handleRequest(req, res) {
         const clientId = String(payload.clientId || "");
         const password = String(payload.password || "");
         const name = normalizeDisplayName(payload.displayName || payload.name);
+        const title = normalizeTitle(payload.title);
         if (!clientId) {
           json(res, 400, { ok: false, error: "Eksik cihaz kimligi" });
           return;
@@ -177,12 +183,14 @@ function handleRequest(req, res) {
         const id = crypto.randomBytes(3).toString("hex").toUpperCase();
         const room = roomFor(id);
         room.passwordHash = passwordHash(password);
+        room.title = title;
         room.clients.set(clientId, { role: "presenter", name, joinedAt: Date.now() });
         room.presenters.add(clientId);
         room.presenterId = clientId;
         json(res, 200, {
           ok: true,
           roomId: id,
+          title: room.title,
           role: "presenter",
           drawingLocked: room.drawingLocked,
           presenterId: room.presenterId,
@@ -249,6 +257,7 @@ function handleRequest(req, res) {
           clientId,
           name,
           role,
+          title: room.title,
           presenterId: room.presenterId,
           presenterCount: room.presenters.size,
           maxPresenters: MAX_PRESENTERS,
@@ -259,6 +268,7 @@ function handleRequest(req, res) {
         json(res, 200, {
           ok: true,
           role,
+          title: room.title,
           drawingLocked: room.drawingLocked,
           presenterId: room.presenterId,
           presenterCount: room.presenters.size,
@@ -314,6 +324,7 @@ function handleRequest(req, res) {
       type: "snapshot",
       clientId,
       roomId,
+      title: room.title,
       presenterId: room.presenterId,
       presenterCount: room.presenters.size,
       maxPresenters: MAX_PRESENTERS,
@@ -326,6 +337,7 @@ function handleRequest(req, res) {
       action: "join",
       clientId,
       role,
+      title: room.title,
       presenterId: room.presenterId,
       presenterCount: room.presenters.size,
       maxPresenters: MAX_PRESENTERS,
@@ -351,6 +363,7 @@ function handleRequest(req, res) {
         action: "leave",
         clientId,
         role,
+        title: activeRoom.title,
         presenterId: activeRoom.presenterId,
         presenterCount: activeRoom.presenters.size,
         maxPresenters: MAX_PRESENTERS,
@@ -382,6 +395,7 @@ function handleRequest(req, res) {
     json(res, 200, {
       ok: true,
       cursor: room.nextSeq - 1,
+      title: room.title,
       drawingLocked: room.drawingLocked,
       presenterId: room.presenterId,
       presenterCount: room.presenters.size,
@@ -389,6 +403,38 @@ function handleRequest(req, res) {
       participants: participantsFor(room),
       events
     });
+    return undefined;
+  }
+
+  const closeMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9-]+)$/i);
+  if (req.method === "DELETE" && closeMatch) {
+    (async () => {
+      try {
+        const roomId = closeMatch[1].toUpperCase();
+        const room = rooms.get(roomId);
+        if (!room) {
+          json(res, 404, { ok: false, error: "Oda bulunamadi" });
+          return;
+        }
+        const payload = await readBody(req);
+        const clientId = String(payload.clientId || "");
+        if (!isPresenter(room, clientId)) {
+          json(res, 403, { ok: false, error: "Bu islem sadece sunucu icin" });
+          return;
+        }
+        broadcast(roomId, {
+          type: "room-closed",
+          from: clientId,
+          roomId,
+          title: room.title,
+          sentAt: Date.now()
+        });
+        rooms.delete(roomId);
+        json(res, 200, { ok: true });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
     return undefined;
   }
 
