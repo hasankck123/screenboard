@@ -54,6 +54,7 @@ const els = {
   selfCamera: document.querySelector("#selfCamera"),
   emptyState: document.querySelector("#emptyState"),
   board: document.querySelector("#board"),
+  toolPointer: document.querySelector("#toolPointer"),
   toolPen: document.querySelector("#toolPen"),
   toolEraser: document.querySelector("#toolEraser"),
   colorPicker: document.querySelector("#colorPicker"),
@@ -254,15 +255,17 @@ function renderQuestions() {
 function renderMaterial() {
   const material = state.material;
   els.materialLayer.hidden = !material;
-  els.materialImage.hidden = true;
-  els.materialPdf.hidden = true;
   els.materialName.textContent = material ? material.name : "Materyal yok.";
   els.materialControls.hidden = !material;
   els.imageSizeControl.hidden = !material || material.type !== "image";
   els.pdfPageControl.hidden = !material || material.type !== "pdf";
   if (!material) {
+    els.materialImage.hidden = true;
+    els.materialPdf.hidden = true;
     els.materialImage.removeAttribute("src");
     els.materialPdf.removeAttribute("src");
+    delete els.materialImage.dataset.renderSrc;
+    delete els.materialPdf.dataset.renderSrc;
     els.materialLayer.style.removeProperty("--material-scale");
     return;
   }
@@ -273,15 +276,25 @@ function renderMaterial() {
   els.pdfPageNumber.value = String(page);
   if (material.type === "image") {
     els.materialLayer.style.setProperty("--material-scale", `${scale}%`);
-    if (els.materialImage.src !== material.dataUrl) els.materialImage.src = material.dataUrl;
+    if (els.materialImage.dataset.renderSrc !== material.dataUrl) {
+      els.materialImage.src = material.dataUrl;
+      els.materialImage.dataset.renderSrc = material.dataUrl;
+    }
     els.materialImage.hidden = false;
+    els.materialPdf.hidden = true;
     els.materialPdf.removeAttribute("src");
+    delete els.materialPdf.dataset.renderSrc;
   } else {
     els.materialLayer.style.removeProperty("--material-scale");
     const pdfSrc = `${material.dataUrl}#page=${page}&zoom=page-fit`;
-    if (els.materialPdf.src !== pdfSrc) els.materialPdf.src = pdfSrc;
+    if (els.materialPdf.dataset.renderSrc !== pdfSrc) {
+      els.materialPdf.src = pdfSrc;
+      els.materialPdf.dataset.renderSrc = pdfSrc;
+    }
     els.materialPdf.hidden = false;
+    els.materialImage.hidden = true;
     els.materialImage.removeAttribute("src");
+    delete els.materialImage.dataset.renderSrc;
   }
 }
 
@@ -342,6 +355,7 @@ function updateUi() {
   els.mirrorState.textContent = state.localStream || els.remoteVideo.srcObject ? "Yayin aktif" : "Yayin yok";
   els.emptyState.classList.toggle("hidden", Boolean(els.remoteVideo.srcObject));
   els.board.classList.toggle("locked", state.drawingLocked && !isPresenter);
+  els.board.classList.toggle("pointer-mode", state.tool === "pointer");
   renderParticipants();
   renderQuestions();
   renderMaterial();
@@ -1122,6 +1136,7 @@ function redraw() {
 }
 
 function beginStroke(event) {
+  if (state.tool === "pointer") return;
   if (state.drawingLocked && state.role !== "presenter") {
     setStatus("Izleyici cizimi kapali");
     event.preventDefault();
@@ -1168,6 +1183,14 @@ async function endStroke(event) {
   event.preventDefault();
 }
 
+function setTool(tool) {
+  state.tool = ["pointer", "pen", "eraser"].includes(tool) ? tool : "pen";
+  els.toolPointer.classList.toggle("active", state.tool === "pointer");
+  els.toolPen.classList.toggle("active", state.tool === "pen");
+  els.toolEraser.classList.toggle("active", state.tool === "eraser");
+  updateUi();
+}
+
 els.createRoom.addEventListener("click", createRoom);
 els.joinRoom.addEventListener("click", () => connect("viewer"));
 els.modeCreate.addEventListener("click", () => setLobbyMode("create"));
@@ -1203,16 +1226,9 @@ els.toggleSelfCamera.addEventListener("click", toggleSelfCamera);
 els.toggleMicrophone.addEventListener("click", toggleMicrophone);
 els.toggleRecording.addEventListener("click", toggleRecording);
 
-els.toolPen.addEventListener("click", () => {
-  state.tool = "pen";
-  els.toolPen.classList.add("active");
-  els.toolEraser.classList.remove("active");
-});
-els.toolEraser.addEventListener("click", () => {
-  state.tool = "eraser";
-  els.toolEraser.classList.add("active");
-  els.toolPen.classList.remove("active");
-});
+els.toolPointer.addEventListener("click", () => setTool("pointer"));
+els.toolPen.addEventListener("click", () => setTool("pen"));
+els.toolEraser.addEventListener("click", () => setTool("eraser"));
 els.sizePicker.addEventListener("input", () => {
   els.sizeValue.textContent = els.sizePicker.value;
 });
