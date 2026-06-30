@@ -83,6 +83,10 @@ button:disabled {
   display: none !important;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .lobby-screen {
   min-height: 100vh;
   display: grid;
@@ -144,6 +148,10 @@ button:disabled {
 .lobby-fields {
   display: grid;
   gap: 8px;
+}
+
+.lobby-screen.mode-join #createFields {
+  display: none;
 }
 
 .app {
@@ -482,6 +490,31 @@ input[type="range"] {
 .top-actions button {
   min-height: 38px;
   padding: 0 12px;
+}
+
+.viewer-greeting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(31, 99, 208, 0.2);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.study-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--primary);
 }
 
 #roomTitle {

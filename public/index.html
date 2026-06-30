@@ -12,7 +12,7 @@
         <div class="lobby-brand">
           <img class="brand-logo" src="assets/kocak-logo.jpeg" alt="Kocak Education">
           <div>
-            <h1>ScreenBoard</h1>
+            <h1>KOCAK EGITIM</h1>
             <p id="lobbyStatus">Hazir</p>
           </div>
         </div>
@@ -50,7 +50,7 @@
         <div class="brand">
           <img class="brand-logo" src="assets/kocak-logo.jpeg" alt="Kocak Education">
           <div>
-            <h1>ScreenBoard</h1>
+            <h1>KOCAK EGITIM</h1>
             <p id="statusText">Hazir</p>
           </div>
         </div>
@@ -119,6 +119,11 @@
             <button id="toggleRecording" type="button" disabled>Kayit</button>
             <button id="stopShare" type="button" disabled>Durdur</button>
           </div>
+          <div class="viewer-greeting" id="viewerGreeting" hidden>
+            <span class="study-icon">✦</span>
+            <strong>Iyi dersler</strong>
+            <span class="study-icon">◇</span>
+          </div>
           <div class="signal">
             <span id="recordingBadge" hidden>Kayit aliniyor</span>
             <span id="peerCount">0 baglanti</span>
@@ -129,10 +134,7 @@
         <div class="stage" id="stage">
           <video id="remoteVideo" autoplay playsinline></video>
           <video id="selfCamera" autoplay muted playsinline></video>
-          <div id="emptyState">
-            <h2>Beyaz tahta</h2>
-            <p>AirServer penceresi ve cizimler burada gorunur.</p>
-          </div>
+          <div id="emptyState"></div>
           <canvas id="board"></canvas>
         </div>
       </section>

@@ -26,7 +26,9 @@ const els = {
   statusText: document.querySelector("#statusText"),
   roomTitle: document.querySelector("#roomTitle"),
   roleTitle: document.querySelector("#roleTitle"),
+  topActions: document.querySelector(".top-actions"),
   recordingBadge: document.querySelector("#recordingBadge"),
+  viewerGreeting: document.querySelector("#viewerGreeting"),
   peerCount: document.querySelector("#peerCount"),
   mirrorState: document.querySelector("#mirrorState"),
   remoteVideo: document.querySelector("#remoteVideo"),
@@ -122,6 +124,8 @@ function slugify(value) {
 function setLobbyMode(mode) {
   state.lobbyMode = mode === "join" ? "join" : "create";
   const isJoin = state.lobbyMode === "join";
+  els.lobbyScreen.classList.toggle("mode-join", isJoin);
+  els.lobbyScreen.classList.toggle("mode-create", !isJoin);
   els.modeCreate.classList.toggle("active", !isJoin);
   els.modeJoin.classList.toggle("active", isJoin);
   els.createFields.hidden = isJoin;
@@ -202,6 +206,10 @@ function updateUi() {
   els.joinRoom.disabled = connected;
   els.copyInvite.disabled = !connected;
   els.closeRoom.disabled = !connected || !isPresenter;
+  els.copyInvite.hidden = connected && !isPresenter;
+  els.closeRoom.hidden = connected && !isPresenter;
+  els.topActions.hidden = connected && !isPresenter;
+  els.viewerGreeting.hidden = !connected || isPresenter;
   els.startAirPlay.disabled = !connected || !isPresenter;
   els.startScreen.disabled = !connected || !isPresenter;
   els.stopShare.disabled = !state.localStream;
@@ -535,7 +543,7 @@ async function startShare(kind) {
     }
     stopShare(false);
     if (kind === "airplay") {
-      setStatus("AirServer penceresini sec");
+      setStatus("Pencere sec");
     }
     state.localStream = kind === "screen" || kind === "airplay"
       ? await navigator.mediaDevices.getDisplayMedia({
