@@ -1,88 +1,439 @@
-<!doctype html>
-<html lang="tr">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ScreenBoard</title>
-    <link rel="stylesheet" href="styles.css">
-  </head>
-  <body>
-    <main class="app">
-      <section class="side">
-        <div class="brand">
-          <img class="brand-logo" src="assets/kocak-logo.jpeg" alt="Kocak Education">
-          <div>
-            <h1>ScreenBoard</h1>
-            <p id="statusText">Hazir</p>
-          </div>
-        </div>
+:root {
+  color-scheme: light;
+  --ink: #141b24;
+  --muted: #667489;
+  --line: #d6dde8;
+  --line-strong: #b9c5d4;
+  --panel: #ffffff;
+  --panel-subtle: #f8fafc;
+  --soft: #eef3f8;
+  --primary: #1f63d0;
+  --primary-dark: #174da8;
+  --primary-soft: #e8f0ff;
+  --danger: #d93d32;
+  --danger-dark: #b93229;
+  --success: #137d52;
+  --success-dark: #0d6240;
+  --warning: #a65f00;
+  --shadow: 0 18px 42px rgba(24, 35, 52, 0.15);
+  --button-shadow: 0 8px 18px rgba(31, 99, 208, 0.18);
+}
 
-        <div class="room-panel">
-          <label for="roomCode">Oda</label>
-          <div class="room-row">
-            <input id="roomCode" autocomplete="off" spellcheck="false" maxlength="16" placeholder="ODA KODU">
-            <button id="createRoom" type="button">Olustur</button>
-          </div>
-          <label for="presenterPassword">Sunucu sifresi</label>
-          <input id="presenterPassword" type="password" autocomplete="current-password" placeholder="Sadece sunucu icin">
-          <div class="role-grid">
-            <button id="joinPresenter" type="button">Sunucu</button>
-            <button id="joinViewer" type="button">Izleyici</button>
-          </div>
-        </div>
+* {
+  box-sizing: border-box;
+}
 
-        <div class="share-panel">
-          <button id="startAirPlay" type="button" disabled>AirPlay</button>
-          <button id="startScreen" type="button" disabled>Ekran</button>
-          <button id="startCamera" type="button" disabled>Kamera</button>
-          <button id="stopShare" type="button" disabled>Durdur</button>
-          <button id="toggleSelfCamera" type="button" disabled>On Kamera</button>
-          <button id="toggleMicrophone" type="button" disabled>Mikrofon</button>
-          <button id="toggleRecording" type="button" disabled>Kayit</button>
-        </div>
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #e9eef5;
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
-        <div class="tool-panel">
-          <div class="segmented" aria-label="Arac">
-            <button id="toolPen" type="button" class="active">Kalem</button>
-            <button id="toolEraser" type="button">Silgi</button>
-          </div>
-          <label for="colorPicker">Renk</label>
-          <input id="colorPicker" type="color" value="#f24b3d">
-          <label for="sizePicker">Kalinlik <span id="sizeValue">5</span></label>
-          <input id="sizePicker" type="range" min="2" max="42" value="5">
-          <div class="tool-actions">
-            <button id="toggleViewerDraw" type="button" hidden disabled>Izleyici cizimi kapat</button>
-            <button id="undoStroke" type="button">Geri Al</button>
-            <button id="clearBoard" type="button">Temizle</button>
-            <button id="saveBoard" type="button">PNG</button>
-          </div>
-        </div>
-      </section>
+button,
+input {
+  font: inherit;
+}
 
-      <section class="stage-wrap">
-        <div class="topbar">
-          <div>
-            <strong id="roomTitle">Oda yok</strong>
-            <span id="roleTitle">Baglanmadi</span>
-          </div>
-          <div class="signal">
-            <span id="peerCount">0 baglanti</span>
-            <span id="mirrorState">Yayin yok</span>
-          </div>
-        </div>
+button {
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f8fb 100%);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 750;
+  letter-spacing: 0;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 5px 14px rgba(23, 33, 43, 0.06);
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease;
+}
 
-        <div class="stage" id="stage">
-          <video id="remoteVideo" autoplay playsinline></video>
-          <video id="selfCamera" autoplay muted playsinline></video>
-          <div id="emptyState">
-            <h2>Beyaz tahta</h2>
-            <p>AirServer penceresi ve cizimler burada gorunur.</p>
-          </div>
-          <canvas id="board"></canvas>
-        </div>
-      </section>
-    </main>
+button:hover:not(:disabled) {
+  border-color: #8fa7c4;
+  background: linear-gradient(180deg, #ffffff 0%, #edf3fb 100%);
+  box-shadow: 0 10px 22px rgba(23, 33, 43, 0.11);
+  transform: translateY(-1px);
+}
 
-    <script src="app.js"></script>
-  </body>
-</html>
+button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px rgba(23, 33, 43, 0.08);
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(31, 99, 208, 0.22);
+  outline-offset: 2px;
+  border-color: var(--primary);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 8px 0 28px rgba(23, 33, 43, 0.05);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+
+.brand-logo {
+  width: 112px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(23, 33, 43, 0.08);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+#statusText,
+#roleTitle,
+.signal,
+#emptyState p {
+  color: var(--muted);
+}
+
+.room-panel,
+.share-panel,
+.tool-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(214, 221, 232, 0.88);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 10px 22px rgba(23, 33, 43, 0.05);
+}
+
+label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #39475a;
+}
+
+.room-row,
+.role-grid,
+.share-panel,
+.tool-actions,
+.segmented {
+  display: grid;
+  gap: 8px;
+}
+
+.room-row {
+  grid-template-columns: 1fr auto;
+}
+
+.role-grid,
+.share-panel,
+.tool-actions,
+.segmented {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.share-panel {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+input[type="text"],
+#roomCode {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--ink);
+  text-transform: uppercase;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+input[type="password"] {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: #fff;
+}
+
+input[type="color"] {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 4px;
+  background: var(--panel);
+}
+
+input[type="range"] {
+  width: 100%;
+}
+
+#createRoom,
+#joinPresenter,
+#startAirPlay,
+#startScreen,
+#startCamera {
+  background: linear-gradient(180deg, #2d73de 0%, var(--primary) 100%);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: var(--button-shadow);
+}
+
+#createRoom:hover:not(:disabled),
+#joinPresenter:hover:not(:disabled),
+#startAirPlay:hover:not(:disabled),
+#startScreen:hover:not(:disabled),
+#startCamera:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2869cb 0%, var(--primary-dark) 100%);
+  border-color: var(--primary-dark);
+  box-shadow: 0 12px 24px rgba(31, 99, 208, 0.26);
+}
+
+#stopShare,
+#clearBoard {
+  border-color: #efb8b3;
+  color: var(--danger-dark);
+  background: linear-gradient(180deg, #fff 0%, #fff3f2 100%);
+}
+
+#stopShare:hover:not(:disabled),
+#clearBoard:hover:not(:disabled),
+#toggleRecording.is-recording:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: #fff;
+  background: linear-gradient(180deg, #e34b3f 0%, var(--danger-dark) 100%);
+  box-shadow: 0 10px 22px rgba(217, 61, 50, 0.22);
+}
+
+#toggleSelfCamera.is-live,
+#toggleMicrophone.is-live {
+  border-color: var(--success);
+  color: #fff;
+  background: linear-gradient(180deg, #199668 0%, var(--success-dark) 100%);
+  box-shadow: 0 10px 22px rgba(19, 125, 82, 0.2);
+}
+
+#toggleRecording.is-recording {
+  border-color: var(--danger);
+  color: #fff;
+  background: linear-gradient(180deg, #e34b3f 0%, var(--danger) 100%);
+  box-shadow: 0 10px 22px rgba(217, 61, 50, 0.24);
+}
+
+#toggleViewerDraw.is-warning {
+  border-color: #d8992f;
+  color: #744200;
+  background: linear-gradient(180deg, #fff8ec 0%, #ffe8bd 100%);
+}
+
+.segmented {
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.segmented button {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.segmented button.active {
+  background: var(--panel);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  box-shadow: 0 5px 16px rgba(31, 99, 208, 0.15);
+}
+
+.stage-wrap {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  padding: 18px;
+  gap: 14px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 24px rgba(24, 35, 52, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+#roomTitle {
+  display: block;
+  font-size: 18px;
+}
+
+.signal {
+  display: flex;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.stage {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid #bdc8d6;
+  border-radius: 8px;
+  background:
+    linear-gradient(#e6edf5 1px, transparent 1px),
+    linear-gradient(90deg, #e6edf5 1px, transparent 1px),
+    #fff;
+  background-size: 28px 28px;
+  box-shadow: var(--shadow);
+}
+
+#remoteVideo,
+#board {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#selfCamera {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 2;
+  width: min(220px, 32%);
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+  background: #111821;
+  box-shadow: 0 10px 28px rgba(17, 24, 33, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+#selfCamera.live {
+  opacity: 1;
+}
+
+#remoteVideo {
+  object-fit: contain;
+  background: #111821;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+#remoteVideo.live {
+  opacity: 1;
+}
+
+#board {
+  z-index: 3;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+#board.locked {
+  cursor: not-allowed;
+}
+
+#emptyState {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 28px;
+  text-align: center;
+  color: var(--ink);
+}
+
+#emptyState.hidden {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .side {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .stage-wrap {
+    min-height: 68vh;
+  }
+}
+
+@media (max-width: 520px) {
+  .side,
+  .stage-wrap {
+    padding: 12px;
+  }
+
+  .room-row,
+  .role-grid,
+  .share-panel,
+  .tool-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .signal {
+    flex-wrap: wrap;
+  }
+}
