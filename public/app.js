@@ -29,10 +29,6 @@ const els = {
   imageSizeControl: document.querySelector("#imageSizeControl"),
   materialScale: document.querySelector("#materialScale"),
   materialScaleValue: document.querySelector("#materialScaleValue"),
-  pdfPageControl: document.querySelector("#pdfPageControl"),
-  prevPdfPage: document.querySelector("#prevPdfPage"),
-  pdfPageNumber: document.querySelector("#pdfPageNumber"),
-  nextPdfPage: document.querySelector("#nextPdfPage"),
   materialLayer: document.querySelector("#materialLayer"),
   materialImage: document.querySelector("#materialImage"),
   materialPdf: document.querySelector("#materialPdf"),
@@ -256,9 +252,8 @@ function renderMaterial() {
   const material = state.material;
   els.materialLayer.hidden = !material;
   els.materialName.textContent = material ? material.name : "Materyal yok.";
-  els.materialControls.hidden = !material;
+  els.materialControls.hidden = !material || material.type !== "image";
   els.imageSizeControl.hidden = !material || material.type !== "image";
-  els.pdfPageControl.hidden = !material || material.type !== "pdf";
   if (!material) {
     els.materialImage.hidden = true;
     els.materialPdf.hidden = true;
@@ -274,7 +269,6 @@ function renderMaterial() {
   const page = Math.round(clampNumber(material.page, 1, 9999, 1));
   els.materialScale.value = String(scale);
   els.materialScaleValue.textContent = `${scale}%`;
-  els.pdfPageNumber.value = String(page);
   if (material.type === "image") {
     els.materialLayer.style.setProperty("--material-scale", `${scale}%`);
     if (els.materialImage.dataset.renderSrc !== material.dataUrl) {
@@ -337,9 +331,6 @@ function updateUi() {
   els.materialInput.disabled = !connected || !isPresenter;
   els.clearMaterial.disabled = !connected || !isPresenter || !state.material;
   els.materialScale.disabled = !connected || !isPresenter || state.material?.type !== "image";
-  els.prevPdfPage.disabled = !connected || !isPresenter || state.material?.type !== "pdf" || Number(state.material?.page || 1) <= 1;
-  els.pdfPageNumber.disabled = !connected || !isPresenter || state.material?.type !== "pdf";
-  els.nextPdfPage.disabled = !connected || !isPresenter || state.material?.type !== "pdf";
   els.materialInput.closest(".material-panel").hidden = !isPresenter;
   els.topActions.hidden = connected && !isPresenter;
   els.viewerGreeting.hidden = !connected || isPresenter;
@@ -622,12 +613,6 @@ function changeMaterialScale() {
   if (state.material?.type !== "image") return;
   const scale = clampNumber(els.materialScale.value, 40, 160, 100);
   updateMaterialOptions({ scale });
-}
-
-function changePdfPage(nextPage) {
-  if (state.material?.type !== "pdf") return;
-  const page = Math.round(clampNumber(nextPage, 1, 9999, 1));
-  updateMaterialOptions({ page });
 }
 
 async function clearMaterial() {
@@ -1124,11 +1109,20 @@ async function toggleRecording() {
 
 function resizeCanvas() {
   const rect = els.board.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
   const scale = window.devicePixelRatio || 1;
   els.board.width = Math.max(1, Math.round(rect.width * scale));
   els.board.height = Math.max(1, Math.round(rect.height * scale));
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   redraw();
+}
+
+function boardNeedsResize() {
+  const rect = els.board.getBoundingClientRect();
+  const scale = window.devicePixelRatio || 1;
+  const expectedWidth = Math.max(1, Math.round(rect.width * scale));
+  const expectedHeight = Math.max(1, Math.round(rect.height * scale));
+  return Math.abs(els.board.width - expectedWidth) > 1 || Math.abs(els.board.height - expectedHeight) > 1;
 }
 
 function pointFor(event) {
@@ -1174,7 +1168,7 @@ function beginStroke(event) {
     event.preventDefault();
     return;
   }
-  if (els.board.width <= 1 || els.board.height <= 1) {
+  if (els.board.width <= 1 || els.board.height <= 1 || boardNeedsResize()) {
     resizeCanvas();
   }
   els.board.setPointerCapture(event.pointerId);
@@ -1242,15 +1236,6 @@ els.questionInput.addEventListener("keydown", event => {
 els.materialInput.addEventListener("change", uploadMaterial);
 els.clearMaterial.addEventListener("click", clearMaterial);
 els.materialScale.addEventListener("input", changeMaterialScale);
-els.prevPdfPage.addEventListener("click", () => changePdfPage(Number(state.material?.page || 1) - 1));
-els.nextPdfPage.addEventListener("click", () => changePdfPage(Number(state.material?.page || 1) + 1));
-els.pdfPageNumber.addEventListener("change", () => changePdfPage(els.pdfPageNumber.value));
-els.pdfPageNumber.addEventListener("keydown", event => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    changePdfPage(els.pdfPageNumber.value);
-  }
-});
 els.startAirPlay.addEventListener("click", () => startShare("airplay"));
 els.startScreen.addEventListener("click", () => startShare("screen"));
 els.stopShare.addEventListener("click", () => stopShare(true));
@@ -1301,6 +1286,10 @@ els.board.addEventListener("pointermove", moveStroke);
 els.board.addEventListener("pointerup", endStroke);
 els.board.addEventListener("pointercancel", endStroke);
 window.addEventListener("resize", resizeCanvas);
+if ("ResizeObserver" in window) {
+  const boardResizeObserver = new ResizeObserver(() => resizeCanvas());
+  boardResizeObserver.observe(els.board);
+}
 
 const initialRoom = normalizeRoom(new URLSearchParams(window.location.search).get("room"));
 if (initialRoom) {

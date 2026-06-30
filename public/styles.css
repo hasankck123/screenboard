@@ -281,17 +281,6 @@ label {
   color: var(--muted);
 }
 
-.pdf-page-control {
-  display: grid;
-  grid-template-columns: auto minmax(64px, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.pdf-page-control input {
-  text-align: center;
-}
-
 .tool-actions,
 .segmented {
   grid-template-columns: repeat(2, minmax(0, 1fr));
