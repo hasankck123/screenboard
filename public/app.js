@@ -1,9 +1,12 @@
 const els = {
   displayName: document.querySelector("#displayName"),
+  lessonTitle: document.querySelector("#lessonTitle"),
   roomCode: document.querySelector("#roomCode"),
   roomPassword: document.querySelector("#roomPassword"),
   createRoom: document.querySelector("#createRoom"),
   joinRoom: document.querySelector("#joinRoom"),
+  copyInvite: document.querySelector("#copyInvite"),
+  closeRoom: document.querySelector("#closeRoom"),
   sessionBadge: document.querySelector("#sessionBadge"),
   participantCount: document.querySelector("#participantCount"),
   participantsList: document.querySelector("#participantsList"),
@@ -17,6 +20,7 @@ const els = {
   statusText: document.querySelector("#statusText"),
   roomTitle: document.querySelector("#roomTitle"),
   roleTitle: document.querySelector("#roleTitle"),
+  recordingBadge: document.querySelector("#recordingBadge"),
   peerCount: document.querySelector("#peerCount"),
   mirrorState: document.querySelector("#mirrorState"),
   remoteVideo: document.querySelector("#remoteVideo"),
@@ -55,6 +59,7 @@ function makeId() {
 const clientId = makeId();
 const state = {
   roomId: "",
+  title: "Canli Ders",
   role: "",
   source: null,
   events: null,
@@ -92,8 +97,23 @@ function normalizeName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32);
 }
 
+function normalizeTitle(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 64) || "Canli Ders";
+}
+
+function slugify(value) {
+  return String(value || "screenboard")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "screenboard";
+}
+
 function requireLobbyFields(requireRoom) {
   const displayName = normalizeName(els.displayName.value);
+  const title = normalizeTitle(els.lessonTitle.value);
   const password = els.roomPassword.value;
   const roomId = normalizeRoom(els.roomCode.value);
   if (!displayName) {
@@ -111,7 +131,7 @@ function requireLobbyFields(requireRoom) {
     els.roomCode.focus();
     return null;
   }
-  return { displayName, password, roomId };
+  return { displayName, title, password, roomId };
 }
 
 function renderParticipants() {
@@ -148,14 +168,19 @@ function renderParticipants() {
 function updateUi() {
   const connected = Boolean(state.roomId && (state.events || state.pollTimer));
   const isPresenter = state.role === "presenter";
-  els.roomTitle.textContent = state.roomId ? `Oda ${state.roomId}` : "Oda yok";
-  els.roleTitle.textContent = state.role ? (isPresenter ? "Sunucu" : "Izleyici") : "Baglanmadi";
+  els.roomTitle.textContent = state.roomId ? state.title : "Canli Ders";
+  els.roleTitle.textContent = state.role
+    ? `${isPresenter ? "Sunucu" : "Izleyici"} - Oda ${state.roomId}`
+    : "Baglanmadi";
   els.sessionBadge.textContent = connected ? (isPresenter ? "Sunucu" : "Izleyici") : "Hazir";
   els.roomCode.disabled = connected;
   els.roomPassword.disabled = connected;
   els.displayName.disabled = connected;
+  els.lessonTitle.disabled = connected;
   els.createRoom.disabled = connected;
   els.joinRoom.disabled = connected;
+  els.copyInvite.disabled = !connected;
+  els.closeRoom.disabled = !connected || !isPresenter;
   els.startAirPlay.disabled = !connected || !isPresenter;
   els.startScreen.disabled = !connected || !isPresenter;
   els.startCamera.disabled = !connected || !isPresenter;
@@ -169,6 +194,7 @@ function updateUi() {
   els.toggleRecording.disabled = !connected || Boolean(state.recorder && state.recorder.state === "stopping");
   els.toggleRecording.textContent = state.recorder?.state === "recording" ? "Kaydi Durdur" : "Kayit";
   els.toggleRecording.classList.toggle("is-recording", state.recorder?.state === "recording");
+  els.recordingBadge.hidden = state.recorder?.state !== "recording";
   els.toggleViewerDraw.hidden = !isPresenter;
   els.toggleViewerDraw.disabled = !isPresenter || !connected;
   els.toggleViewerDraw.textContent = state.drawingLocked ? "Izleyici cizimi ac" : "Izleyici cizimi kapat";
@@ -207,6 +233,10 @@ function startPolling() {
       const response = await fetch(`/api/rooms/${state.roomId}/poll?${query.toString()}`);
       const data = await response.json();
       if (!response.ok || !data.ok) {
+        if (response.status === 404 || data.error === "Oda bulunamadi") {
+          leaveRoom("Oda kapatildi");
+          return;
+        }
         setStatus(data.error || "Canli baglanti bekleniyor");
       } else {
         state.cursor = Number(data.cursor || state.cursor);
@@ -234,6 +264,7 @@ function resetRoomState() {
 function applyJoin(roomId, role, joinData) {
   resetRoomState();
   state.roomId = roomId;
+  state.title = normalizeTitle(joinData.title);
   state.role = joinData.role || role;
   state.drawingLocked = Boolean(joinData.drawingLocked);
   state.cursor = Number(joinData.cursor || 0);
@@ -244,6 +275,58 @@ function applyJoin(roomId, role, joinData) {
   setStatus(state.role === "presenter" ? "Oda kuruldu" : "Odaya katildin");
   updateUi();
   postMessage({ type: state.role === "presenter" ? "presenter-online" : "viewer-ready", to: joinData.presenterId || null });
+}
+
+function leaveRoom(message = "Oda kapatildi") {
+  stopShare(false);
+  clearSelfCamera();
+  resetRoomState();
+  clearRemoteVideo();
+  state.roomId = "";
+  state.role = "";
+  state.title = "Canli Ders";
+  state.cursor = 0;
+  state.participants = [];
+  state.strokes = [];
+  state.ownStrokes = [];
+  state.drawingLocked = false;
+  redraw();
+  setStatus(message);
+  updateUi();
+}
+
+async function copyInviteLink() {
+  if (!state.roomId) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set("room", state.roomId);
+  try {
+    await navigator.clipboard.writeText(url.toString());
+    setStatus("Davet linki kopyalandi");
+  } catch (error) {
+    window.prompt("Davet linki", url.toString());
+  }
+}
+
+async function closeRoom() {
+  if (state.role !== "presenter" || !state.roomId) return;
+  const confirmed = window.confirm("Odayi herkes icin kapatmak istiyor musun?");
+  if (!confirmed) return;
+  const roomId = state.roomId;
+  try {
+    const response = await fetch(`/api/rooms/${roomId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId })
+    });
+    const data = await response.json().catch(() => ({ ok: false, error: "Oda kapatilamadi" }));
+    if (!response.ok || !data.ok) {
+      setStatus(data.error || "Oda kapatilamadi");
+      return;
+    }
+    leaveRoom("Oda kapatildi");
+  } catch (error) {
+    setStatus("Oda kapatilamadi");
+  }
 }
 
 async function createRoom() {
@@ -257,6 +340,7 @@ async function createRoom() {
       body: JSON.stringify({
         clientId,
         displayName: fields.displayName,
+        title: fields.title,
         password: fields.password
       })
     });
@@ -303,6 +387,7 @@ function handleEvent(message) {
   if (message.type === "snapshot") {
     state.strokes = Array.isArray(message.board) ? message.board : [];
     state.drawingLocked = Boolean(message.drawingLocked);
+    if (message.title) state.title = normalizeTitle(message.title);
     if (Array.isArray(message.participants)) state.participants = message.participants;
     redraw();
     if (state.role === "viewer" && message.presenterId) {
@@ -314,12 +399,17 @@ function handleEvent(message) {
 
   if (message.type === "presence") {
     if (message.action === "leave") state.connectedPeers.delete(message.clientId);
+    if (message.title) state.title = normalizeTitle(message.title);
     if (Array.isArray(message.participants)) state.participants = message.participants;
     if (state.role === "viewer" && message.role === "presenter" && message.action === "join") {
       postMessage({ type: "viewer-ready", to: message.clientId });
     }
     if (typeof message.drawingLocked === "boolean") state.drawingLocked = message.drawingLocked;
     updateUi();
+  }
+  if (message.type === "room-closed") {
+    leaveRoom("Oda sunucu tarafindan kapatildi");
+    return;
   }
   if (message.type === "board-lock") {
     state.drawingLocked = Boolean(message.locked);
@@ -656,7 +746,7 @@ function downloadRecording() {
   const link = document.createElement("a");
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   link.href = URL.createObjectURL(blob);
-  link.download = `screenboard-${state.roomId || "recording"}-${stamp}.webm`;
+  link.download = `${slugify(state.title)}-${state.roomId || "recording"}-${stamp}.webm`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
@@ -795,6 +885,8 @@ async function endStroke(event) {
 
 els.createRoom.addEventListener("click", createRoom);
 els.joinRoom.addEventListener("click", () => connect("viewer"));
+els.copyInvite.addEventListener("click", copyInviteLink);
+els.closeRoom.addEventListener("click", closeRoom);
 els.startAirPlay.addEventListener("click", () => startShare("airplay"));
 els.startScreen.addEventListener("click", () => startShare("screen"));
 els.startCamera.addEventListener("click", () => startShare("camera"));
@@ -853,6 +945,12 @@ els.board.addEventListener("pointermove", moveStroke);
 els.board.addEventListener("pointerup", endStroke);
 els.board.addEventListener("pointercancel", endStroke);
 window.addEventListener("resize", resizeCanvas);
+
+const initialRoom = normalizeRoom(new URLSearchParams(window.location.search).get("room"));
+if (initialRoom) {
+  els.roomCode.value = initialRoom;
+  setStatus("Davet linki acildi");
+}
 
 resizeCanvas();
 updateUi();

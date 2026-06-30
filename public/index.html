@@ -24,6 +24,8 @@
           </div>
           <label for="displayName">Kullanici adi</label>
           <input id="displayName" autocomplete="name" maxlength="32" placeholder="Ad Soyad">
+          <label for="lessonTitle">Ders basligi</label>
+          <input id="lessonTitle" maxlength="64" placeholder="Orn. TYT Matematik - Problemler">
           <label for="roomPassword">Oda sifresi</label>
           <input id="roomPassword" type="password" autocomplete="current-password" minlength="4" placeholder="En az 4 karakter">
           <button id="createRoom" type="button">Oda Olustur</button>
@@ -31,6 +33,10 @@
           <div class="room-row">
             <input id="roomCode" autocomplete="off" spellcheck="false" maxlength="16" placeholder="ODA KODU">
             <button id="joinRoom" type="button">Katil</button>
+          </div>
+          <div class="room-controls">
+            <button id="copyInvite" type="button" disabled>Davet Linki</button>
+            <button id="closeRoom" type="button" disabled>Odayi Kapat</button>
           </div>
         </div>
 
@@ -75,10 +81,11 @@
       <section class="stage-wrap">
         <div class="topbar">
           <div>
-            <strong id="roomTitle">Oda yok</strong>
+            <strong id="roomTitle">Canli Ders</strong>
             <span id="roleTitle">Baglanmadi</span>
           </div>
           <div class="signal">
+            <span id="recordingBadge" hidden>Kayit aliniyor</span>
             <span id="peerCount">0 baglanti</span>
             <span id="mirrorState">Yayin yok</span>
           </div>

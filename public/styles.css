@@ -168,6 +168,7 @@ label {
 }
 
 .room-row,
+.room-controls,
 .share-panel,
 .tool-actions,
 .segmented {
@@ -177,6 +178,10 @@ label {
 
 .room-row {
   grid-template-columns: 1fr auto;
+}
+
+.room-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .share-panel,
@@ -221,6 +226,7 @@ input[type="range"] {
 
 #createRoom,
 #joinRoom,
+#copyInvite,
 #startAirPlay,
 #startScreen,
 #startCamera {
@@ -232,6 +238,7 @@ input[type="range"] {
 
 #createRoom:hover:not(:disabled),
 #joinRoom:hover:not(:disabled),
+#copyInvite:hover:not(:disabled),
 #startAirPlay:hover:not(:disabled),
 #startScreen:hover:not(:disabled),
 #startCamera:hover:not(:disabled) {
@@ -301,6 +308,7 @@ input[type="range"] {
 }
 
 #stopShare,
+#closeRoom,
 #clearBoard {
   border-color: #efb8b3;
   color: var(--danger-dark);
@@ -308,6 +316,7 @@ input[type="range"] {
 }
 
 #stopShare:hover:not(:disabled),
+#closeRoom:hover:not(:disabled),
 #clearBoard:hover:not(:disabled),
 #toggleRecording.is-recording:hover:not(:disabled) {
   border-color: var(--danger);
@@ -385,8 +394,19 @@ input[type="range"] {
 
 .signal {
   display: flex;
+  align-items: center;
   gap: 12px;
   white-space: nowrap;
+}
+
+#recordingBadge {
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: #d93d32;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(217, 61, 50, 0.2);
 }
 
 .stage {
@@ -490,6 +510,7 @@ input[type="range"] {
   }
 
   .room-row,
+  .room-controls,
   .share-panel,
   .tool-actions {
     grid-template-columns: 1fr;
