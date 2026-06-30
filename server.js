@@ -13,6 +13,23 @@ const PRESENTER_PASSWORD = process.env.PRESENTER_PASSWORD || "1234";
 const MAX_PRESENTERS = Number(process.env.MAX_PRESENTERS || 2);
 const rooms = new Map();
 
+function normalizeDisplayName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32) || "Misafir";
+}
+
+function passwordHash(value) {
+  return crypto.createHash("sha256").update(String(value || "")).digest("hex");
+}
+
+function participantsFor(room) {
+  return [...room.clients.entries()].map(([clientId, client]) => ({
+    clientId,
+    name: client.name || "Misafir",
+    role: room.presenters.has(clientId) ? "presenter" : "viewer",
+    joinedAt: client.joinedAt
+  })).sort((a, b) => a.joinedAt - b.joinedAt);
+}
+
 function cleanupRooms() {
   const now = Date.now();
   for (const [roomId, room] of rooms) {
@@ -35,6 +52,7 @@ function roomFor(id) {
       nextSeq: 1,
       board: [],
       drawingLocked: false,
+      passwordHash: "",
       presenterId: null,
       updatedAt: Date.now()
     });
@@ -116,6 +134,8 @@ function serveStatic(req, res) {
       ".css": "text/css; charset=utf-8",
       ".js": "application/javascript; charset=utf-8",
       ".json": "application/json; charset=utf-8",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
       ".png": "image/png",
       ".svg": "image/svg+xml"
     };
@@ -140,9 +160,42 @@ function handleRequest(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/rooms") {
-    const id = crypto.randomBytes(3).toString("hex").toUpperCase();
-    roomFor(id);
-    json(res, 200, { roomId: id });
+    (async () => {
+      try {
+        const payload = await readBody(req);
+        const clientId = String(payload.clientId || "");
+        const password = String(payload.password || "");
+        const name = normalizeDisplayName(payload.displayName || payload.name);
+        if (!clientId) {
+          json(res, 400, { ok: false, error: "Eksik cihaz kimligi" });
+          return;
+        }
+        if (password.length < 4) {
+          json(res, 400, { ok: false, error: "Oda sifresi en az 4 karakter olmali" });
+          return;
+        }
+        const id = crypto.randomBytes(3).toString("hex").toUpperCase();
+        const room = roomFor(id);
+        room.passwordHash = passwordHash(password);
+        room.clients.set(clientId, { role: "presenter", name, joinedAt: Date.now() });
+        room.presenters.add(clientId);
+        room.presenterId = clientId;
+        json(res, 200, {
+          ok: true,
+          roomId: id,
+          role: "presenter",
+          drawingLocked: room.drawingLocked,
+          presenterId: room.presenterId,
+          presenterCount: room.presenters.size,
+          maxPresenters: MAX_PRESENTERS,
+          participants: participantsFor(room),
+          board: room.board,
+          cursor: room.nextSeq - 1
+        });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
     return undefined;
   }
 
@@ -151,17 +204,27 @@ function handleRequest(req, res) {
     (async () => {
       try {
         const roomId = joinMatch[1].toUpperCase();
-        const room = roomFor(roomId);
+        const room = rooms.get(roomId);
+        if (!room) {
+          json(res, 404, { ok: false, error: "Oda bulunamadi" });
+          return;
+        }
         const payload = await readBody(req);
         const clientId = String(payload.clientId || "");
-        const role = payload.role === "presenter" ? "presenter" : "viewer";
+        const requestedRole = payload.role === "presenter" ? "presenter" : "viewer";
+        const role = room.presenterId ? requestedRole : "presenter";
         const password = String(payload.password || "");
+        const name = normalizeDisplayName(payload.displayName || payload.name);
 
         if (!clientId) {
           json(res, 400, { ok: false, error: "Eksik cihaz kimligi" });
           return;
         }
-        if (role === "presenter" && password !== PRESENTER_PASSWORD) {
+        if (room.passwordHash && passwordHash(password) !== room.passwordHash) {
+          json(res, 403, { ok: false, error: "Oda sifresi hatali" });
+          return;
+        }
+        if (!room.passwordHash && role === "presenter" && password !== PRESENTER_PASSWORD) {
           json(res, 403, { ok: false, error: "Sunucu sifresi hatali" });
           return;
         }
@@ -169,18 +232,38 @@ function handleRequest(req, res) {
           json(res, 409, { ok: false, error: "Sunucu limiti dolu" });
           return;
         }
-        room.clients.set(clientId, { ...(room.clients.get(clientId) || {}), role, joinedAt: Date.now() });
+        room.clients.set(clientId, {
+          ...(room.clients.get(clientId) || {}),
+          role,
+          name,
+          joinedAt: room.clients.get(clientId)?.joinedAt || Date.now()
+        });
         if (role === "presenter") {
           room.presenters.add(clientId);
           if (!room.presenterId) room.presenterId = clientId;
         }
+        const participantList = participantsFor(room);
+        broadcast(roomId, {
+          type: "presence",
+          action: "join",
+          clientId,
+          name,
+          role,
+          presenterId: room.presenterId,
+          presenterCount: room.presenters.size,
+          maxPresenters: MAX_PRESENTERS,
+          participants: participantList,
+          drawingLocked: room.drawingLocked
+        }, clientId);
 
         json(res, 200, {
           ok: true,
+          role,
           drawingLocked: room.drawingLocked,
           presenterId: room.presenterId,
           presenterCount: room.presenters.size,
           maxPresenters: MAX_PRESENTERS,
+          participants: participantList,
           board: room.board,
           cursor: room.nextSeq - 1
         });
@@ -197,7 +280,12 @@ function handleRequest(req, res) {
     const clientId = url.searchParams.get("clientId") || crypto.randomUUID();
     const role = url.searchParams.get("role") === "presenter" ? "presenter" : "viewer";
     const password = url.searchParams.get("password") || "";
-    const room = roomFor(roomId);
+    const room = rooms.get(roomId);
+
+    if (!room) {
+      json(res, 404, { ok: false, error: "Oda bulunamadi" });
+      return undefined;
+    }
 
     if (role === "presenter" && password !== PRESENTER_PASSWORD) {
       json(res, 403, { ok: false, error: "Sunucu sifresi hatali" });
@@ -229,6 +317,7 @@ function handleRequest(req, res) {
       presenterId: room.presenterId,
       presenterCount: room.presenters.size,
       maxPresenters: MAX_PRESENTERS,
+      participants: participantsFor(room),
       drawingLocked: room.drawingLocked,
       board: room.board
     });
@@ -240,6 +329,7 @@ function handleRequest(req, res) {
       presenterId: room.presenterId,
       presenterCount: room.presenters.size,
       maxPresenters: MAX_PRESENTERS,
+      participants: participantsFor(room),
       drawingLocked: room.drawingLocked
     }, clientId);
 
@@ -264,6 +354,7 @@ function handleRequest(req, res) {
         presenterId: activeRoom.presenterId,
         presenterCount: activeRoom.presenters.size,
         maxPresenters: MAX_PRESENTERS,
+        participants: participantsFor(activeRoom),
         drawingLocked: activeRoom.drawingLocked
       });
     });
@@ -273,9 +364,13 @@ function handleRequest(req, res) {
   const pollMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9-]+)\/poll$/i);
   if (req.method === "GET" && pollMatch) {
     const roomId = pollMatch[1].toUpperCase();
-    const room = roomFor(roomId);
+    const room = rooms.get(roomId);
     const clientId = url.searchParams.get("clientId") || "";
     const after = Number(url.searchParams.get("after") || 0);
+    if (!room) {
+      json(res, 404, { ok: false, error: "Oda bulunamadi" });
+      return undefined;
+    }
     const client = room.clients.get(clientId);
 
     if (!client) {
@@ -291,6 +386,7 @@ function handleRequest(req, res) {
       presenterId: room.presenterId,
       presenterCount: room.presenters.size,
       maxPresenters: MAX_PRESENTERS,
+      participants: participantsFor(room),
       events
     });
     return undefined;
@@ -299,9 +395,13 @@ function handleRequest(req, res) {
   const messageMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9-]+)\/messages$/i);
   if (req.method === "POST" && messageMatch) {
     (async () => {
-    try {
+      try {
       const roomId = messageMatch[1].toUpperCase();
-      const room = roomFor(roomId);
+      const room = rooms.get(roomId);
+      if (!room) {
+        json(res, 404, { ok: false, error: "Oda bulunamadi" });
+        return;
+      }
       const payload = await readBody(req);
       const sender = room.clients.get(payload.from);
       const senderIsPresenter = Boolean(sender && isPresenter(room, payload.from));
