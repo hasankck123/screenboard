@@ -264,6 +264,7 @@ function renderMaterial() {
     els.materialPdf.hidden = true;
     els.materialImage.removeAttribute("src");
     els.materialPdf.removeAttribute("src");
+    releaseMaterialObjectUrl();
     delete els.materialImage.dataset.renderSrc;
     delete els.materialPdf.dataset.renderSrc;
     els.materialLayer.style.removeProperty("--material-scale");
@@ -283,10 +284,18 @@ function renderMaterial() {
     els.materialImage.hidden = false;
     els.materialPdf.hidden = true;
     els.materialPdf.removeAttribute("src");
+    releaseMaterialObjectUrl();
     delete els.materialPdf.dataset.renderSrc;
   } else {
     els.materialLayer.style.removeProperty("--material-scale");
-    const pdfSrc = `${material.dataUrl}#page=${page}&zoom=page-fit`;
+    if (els.materialPdf.dataset.objectKey !== material.dataUrl) {
+      releaseMaterialObjectUrl();
+      els.materialPdf.dataset.objectUrl = dataUrlToBlobUrl(material.dataUrl);
+      els.materialPdf.dataset.objectKey = material.dataUrl;
+      delete els.materialPdf.dataset.renderSrc;
+    }
+    const pdfBase = els.materialPdf.dataset.objectUrl || material.dataUrl;
+    const pdfSrc = `${pdfBase}#page=${page}&zoom=page-fit`;
     if (els.materialPdf.dataset.renderSrc !== pdfSrc) {
       els.materialPdf.src = pdfSrc;
       els.materialPdf.dataset.renderSrc = pdfSrc;
@@ -536,6 +545,28 @@ function readFileAsDataUrl(file) {
   });
 }
 
+function dataUrlToBlobUrl(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:([^;,]+)?(;base64)?,(.*)$/);
+  if (!match) return "";
+  const mime = match[1] || "application/octet-stream";
+  const isBase64 = Boolean(match[2]);
+  const payload = match[3] || "";
+  const binary = isBase64 ? atob(payload) : decodeURIComponent(payload);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return URL.createObjectURL(new Blob([bytes], { type: mime }));
+}
+
+function releaseMaterialObjectUrl() {
+  if (els.materialPdf.dataset.objectUrl) {
+    URL.revokeObjectURL(els.materialPdf.dataset.objectUrl);
+    delete els.materialPdf.dataset.objectUrl;
+    delete els.materialPdf.dataset.objectKey;
+  }
+}
+
 async function uploadMaterial() {
   if (state.role !== "presenter") return;
   const file = els.materialInput.files?.[0];
@@ -566,6 +597,7 @@ async function uploadMaterial() {
       }
     });
     if (response?.material !== undefined) state.material = response.material;
+    if (isPdf) setTool("pointer");
     setStatus("Materyal eklendi");
   } catch (error) {
     setStatus("Materyal eklenemedi");
