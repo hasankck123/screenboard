@@ -16,6 +16,25 @@ const els = {
   closeHelp: document.querySelector("#closeHelp"),
   closeHelpBackdrop: document.querySelector("#closeHelpBackdrop"),
   helpModal: document.querySelector("#helpModal"),
+  authCard: document.querySelector("#authCard"),
+  authStatus: document.querySelector("#authStatus"),
+  authFields: document.querySelector("#authFields"),
+  authName: document.querySelector("#authName"),
+  authEmail: document.querySelector("#authEmail"),
+  authPassword: document.querySelector("#authPassword"),
+  referralCode: document.querySelector("#referralCode"),
+  loginAccount: document.querySelector("#loginAccount"),
+  registerAccount: document.querySelector("#registerAccount"),
+  logoutAccount: document.querySelector("#logoutAccount"),
+  adminPanel: document.querySelector("#adminPanel"),
+  adminCode: document.querySelector("#adminCode"),
+  adminMaxUses: document.querySelector("#adminMaxUses"),
+  adminDays: document.querySelector("#adminDays"),
+  createReferralCode: document.querySelector("#createReferralCode"),
+  refreshAdmin: document.querySelector("#refreshAdmin"),
+  adminMetrics: document.querySelector("#adminMetrics"),
+  adminCodes: document.querySelector("#adminCodes"),
+  roomLobbyCard: document.querySelector("#roomLobbyCard"),
   copyInvite: document.querySelector("#copyInvite"),
   closeRoom: document.querySelector("#closeRoom"),
   sessionBadge: document.querySelector("#sessionBadge"),
@@ -93,6 +112,8 @@ const state = {
   roomId: "",
   title: "Canli Ders",
   role: "",
+  authToken: localStorage.getItem("dersflow-token") || "",
+  authUser: null,
   lobbyMode: "create",
   source: null,
   events: null,
@@ -130,6 +151,59 @@ const ctx = els.board.getContext("2d", { willReadFrequently: false });
 function setStatus(text) {
   els.statusText.textContent = text;
   els.lobbyStatus.textContent = text;
+}
+
+async function apiRequest(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  if (state.authToken) headers.Authorization = `Bearer ${state.authToken}`;
+  const response = await fetch(path, { ...options, headers });
+  const data = await response.json().catch(() => ({ ok: false, error: "Sunucu cevabi okunamadi" }));
+  return { response, data };
+}
+
+function setAuth(token, user) {
+  state.authToken = token || "";
+  state.authUser = user || null;
+  if (state.authToken) localStorage.setItem("dersflow-token", state.authToken);
+  else localStorage.removeItem("dersflow-token");
+  if (user?.name && !els.displayName.value.trim()) els.displayName.value = user.name;
+  updateAuthUi();
+  updateUi();
+}
+
+function updateAuthUi() {
+  const user = state.authUser;
+  const isAdmin = user?.role === "admin";
+  els.authStatus.textContent = user
+    ? `${user.name || user.email} - ${isAdmin ? "Admin" : "Egitmen"}`
+    : "Giris yapilmadi";
+  els.loginAccount.hidden = Boolean(user);
+  els.registerAccount.hidden = Boolean(user);
+  els.logoutAccount.hidden = !user;
+  els.authFields.hidden = Boolean(user);
+  els.adminPanel.hidden = !isAdmin;
+  els.roomLobbyCard.hidden = isAdmin;
+  els.modeCreate.disabled = isAdmin;
+  els.modeJoin.disabled = isAdmin;
+}
+
+async function loadAccount() {
+  if (!state.authToken) {
+    updateAuthUi();
+    return;
+  }
+  try {
+    const { response, data } = await apiRequest("/api/auth/me");
+    if (!response.ok || !data.ok) {
+      setAuth("", null);
+      return;
+    }
+    setAuth(state.authToken, data.user);
+    if (data.user.role === "admin") refreshAdminPanel();
+  } catch (error) {
+    setAuth("", null);
+  }
 }
 
 function openHelpModal() {
@@ -338,7 +412,7 @@ function updateUi() {
   els.roomPassword.disabled = connected;
   els.displayName.disabled = connected;
   els.lessonTitle.disabled = connected;
-  els.createRoom.disabled = connected;
+  els.createRoom.disabled = connected || !state.authUser;
   els.joinRoom.disabled = connected;
   els.copyInvite.disabled = !connected;
   els.closeRoom.disabled = !connected || !isPresenter;
@@ -646,14 +720,144 @@ async function clearMaterial() {
   updateUi();
 }
 
+async function registerAccount() {
+  try {
+    setStatus("Kayit olusturuluyor");
+    const name = normalizeName(els.authName.value);
+    const email = els.authEmail.value.trim();
+    const password = els.authPassword.value;
+    const referralCode = els.referralCode.value.trim();
+    const { response, data } = await apiRequest("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password, referralCode })
+    });
+    if (!response.ok || !data.ok) {
+      setStatus(data.error || "Kayit olusturulamadi");
+      return;
+    }
+    setAuth(data.token, data.user);
+    setStatus("Kayit tamamlandi");
+  } catch (error) {
+    setStatus("Kayit olusturulamadi");
+  }
+}
+
+async function loginAccount() {
+  try {
+    setStatus("Giris yapiliyor");
+    const email = els.authEmail.value.trim();
+    const password = els.authPassword.value;
+    const { response, data } = await apiRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    });
+    if (!response.ok || !data.ok) {
+      setStatus(data.error || "Giris yapilamadi");
+      return;
+    }
+    setAuth(data.token, data.user);
+    setStatus("Giris yapildi");
+    if (data.user.role === "admin") refreshAdminPanel();
+  } catch (error) {
+    setStatus("Giris yapilamadi");
+  }
+}
+
+function logoutAccount() {
+  setAuth("", null);
+  setStatus("Cikis yapildi");
+}
+
+function renderAdminCodes(codes) {
+  if (!codes?.length) {
+    els.adminCodes.textContent = "Kod yok.";
+    return;
+  }
+  els.adminCodes.replaceChildren(...codes.map(code => {
+    const row = document.createElement("div");
+    row.className = "admin-row";
+    const info = document.createElement("span");
+    info.innerHTML = `<strong>${code.code}</strong><br><small>${code.used_count}/${code.max_uses} kullanim - ${code.active ? "aktif" : "pasif"}</small>`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = code.active ? "Pasif" : "Aktif";
+    button.addEventListener("click", () => toggleReferralCode(code.id, !code.active));
+    row.append(info, button);
+    return row;
+  }));
+}
+
+function renderAdminMetrics(metrics) {
+  if (!metrics) {
+    els.adminMetrics.textContent = "Sistem durumu yuklenmedi.";
+    return;
+  }
+  const mb = value => `${Math.round(value / 1024 / 1024)} MB`;
+  els.adminMetrics.innerHTML = `
+    <strong>Canli yuk</strong>
+    <span>Aktif oda: ${metrics.activeRoomCount}</span>
+    <span>Toplam kullanici: ${metrics.userCount}</span>
+    <span>Egitmen: ${metrics.teacherCount}</span>
+    <span>RAM: ${mb(metrics.memory.rss)} / Heap: ${mb(metrics.memory.heapUsed)}</span>
+    <span>Calisma suresi: ${Math.round(metrics.uptime / 60)} dk</span>
+  `;
+}
+
+async function refreshAdminPanel() {
+  if (state.authUser?.role !== "admin") return;
+  try {
+    const [metricsResult, codesResult] = await Promise.all([
+      apiRequest("/api/admin/metrics"),
+      apiRequest("/api/admin/referral-codes")
+    ]);
+    if (metricsResult.data.ok) renderAdminMetrics(metricsResult.data);
+    if (codesResult.data.ok) renderAdminCodes(codesResult.data.codes);
+  } catch (error) {
+    els.adminMetrics.textContent = "Admin verileri alinamadi.";
+  }
+}
+
+async function createReferralCode() {
+  try {
+    const { response, data } = await apiRequest("/api/admin/referral-codes", {
+      method: "POST",
+      body: JSON.stringify({
+        code: els.adminCode.value,
+        maxUses: els.adminMaxUses.value,
+        days: els.adminDays.value
+      })
+    });
+    if (!response.ok || !data.ok) {
+      setStatus(data.error || "Kod olusturulamadi");
+      return;
+    }
+    els.adminCode.value = "";
+    setStatus(`Kod olusturuldu: ${data.code.code}`);
+    refreshAdminPanel();
+  } catch (error) {
+    setStatus("Kod olusturulamadi");
+  }
+}
+
+async function toggleReferralCode(id, active) {
+  await apiRequest(`/api/admin/referral-codes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ active })
+  });
+  refreshAdminPanel();
+}
+
 async function createRoom() {
   try {
+    if (!state.authUser) {
+      setStatus("Oda olusturmak icin giris yap");
+      return;
+    }
     const fields = requireLobbyFields(false);
     if (!fields) return;
     setStatus("Oda olusturuluyor");
-    const response = await fetch("/api/rooms", {
+    const { response, data } = await apiRequest("/api/rooms", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId,
         displayName: fields.displayName,
@@ -661,7 +865,6 @@ async function createRoom() {
         password: fields.password
       })
     });
-    const data = await response.json().catch(() => ({ ok: false, error: "Oda olusturulamadi" }));
     if (!response.ok || !data.ok) {
       setStatus(data.error || "Oda olusturulamadi");
       return;
@@ -1539,6 +1742,11 @@ function setPenStyle(style) {
 
 els.createRoom.addEventListener("click", createRoom);
 els.joinRoom.addEventListener("click", () => connect("viewer"));
+els.loginAccount.addEventListener("click", loginAccount);
+els.registerAccount.addEventListener("click", registerAccount);
+els.logoutAccount.addEventListener("click", logoutAccount);
+els.createReferralCode.addEventListener("click", createReferralCode);
+els.refreshAdmin.addEventListener("click", refreshAdminPanel);
 els.openHelp.addEventListener("click", openHelpModal);
 els.closeHelp.addEventListener("click", closeHelpModal);
 els.closeHelpBackdrop.addEventListener("click", closeHelpModal);
@@ -1634,3 +1842,4 @@ if (initialRoom) {
 
 resizeCanvas();
 updateUi();
+loadAccount();

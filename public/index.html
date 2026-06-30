@@ -17,7 +17,40 @@
           </div>
         </div>
 
-        <div class="lobby-card">
+        <div class="lobby-card auth-card" id="authCard">
+          <div class="panel-heading">
+            <strong>Hesap</strong>
+            <span id="authStatus">Giris yapilmadi</span>
+          </div>
+          <div id="authFields" class="auth-fields">
+            <input id="authName" autocomplete="name" maxlength="32" placeholder="Ad Soyad">
+            <input id="authEmail" autocomplete="username" placeholder="E-posta / admin kullanici adi">
+            <input id="authPassword" type="password" autocomplete="current-password" placeholder="Sifre">
+            <input id="referralCode" autocomplete="off" spellcheck="false" maxlength="32" placeholder="Referans kodu">
+          </div>
+          <div class="auth-actions">
+            <button id="loginAccount" type="button">Giris Yap</button>
+            <button id="registerAccount" type="button">Kodla Kayit Ol</button>
+            <button id="logoutAccount" type="button" hidden>Cikis</button>
+          </div>
+        </div>
+
+        <div class="lobby-card admin-card" id="adminPanel" hidden>
+          <div class="panel-heading">
+            <strong>Admin Panel</strong>
+            <button id="refreshAdmin" type="button">Yenile</button>
+          </div>
+          <div class="admin-grid">
+            <input id="adminCode" autocomplete="off" spellcheck="false" maxlength="32" placeholder="Kod bos kalirsa otomatik">
+            <input id="adminMaxUses" type="number" min="1" max="500" value="1" placeholder="Kullanim">
+            <input id="adminDays" type="number" min="1" max="365" value="30" placeholder="Gun">
+            <button id="createReferralCode" type="button">Referans Kodu Olustur</button>
+          </div>
+          <div id="adminMetrics" class="admin-output">Sistem durumu yuklenmedi.</div>
+          <div id="adminCodes" class="admin-output">Kod yok.</div>
+        </div>
+
+        <div class="lobby-card" id="roomLobbyCard">
           <div class="lobby-tabs" aria-label="Oturum modu">
             <button id="modeCreate" type="button" class="active">Oda Olustur</button>
             <button id="modeJoin" type="button">Odaya Katil</button>

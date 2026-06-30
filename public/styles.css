@@ -155,6 +155,59 @@ button:disabled {
   gap: 8px;
 }
 
+.auth-card {
+  gap: 14px;
+}
+
+.auth-fields,
+.auth-actions,
+.admin-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.auth-actions button {
+  min-width: 0;
+}
+
+.admin-grid {
+  grid-template-columns: 1.3fr 0.7fr 0.7fr auto;
+}
+
+.admin-output {
+  display: grid;
+  gap: 6px;
+  max-height: 170px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-subtle);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.admin-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.admin-row small {
+  color: var(--muted);
+}
+
 .lobby-screen.mode-join #createFields {
   display: none;
 }
