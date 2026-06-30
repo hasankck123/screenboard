@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="1500" viewBox="0 0 560 1500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.52" stop-color="#eef6ff"/>
+      <stop offset="1" stop-color="#e7eef8"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#0f4ab8"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="1" stop-color="#263244"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-color="#172033" flood-opacity="0.15"/>
+    </filter>
+    <pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse">
+      <path d="M34 0L0 0 0 34" fill="none" stroke="#d6e1ee" stroke-width="1"/>
+    </pattern>
+    <style>
+      .font { font-family: Inter, Segoe UI, Arial, sans-serif; }
+      .ink { fill: #111827; }
+      .muted { fill: #64748b; }
+      .white { fill: #ffffff; }
+      .blueText { fill: #1d4ed8; }
+    </style>
+  </defs>
+
+  <rect width="560" height="1500" rx="36" fill="url(#bg)"/>
+  <rect width="560" height="1500" rx="36" fill="url(#grid)" opacity="0.5"/>
+  <circle cx="462" cy="142" r="132" fill="#dbeafe" opacity="0.8"/>
+  <circle cx="92" cy="1360" r="160" fill="#e0f2fe" opacity="0.72"/>
+
+  <g class="font" transform="translate(46 54)">
+    <rect x="0" y="0" width="468" height="118" rx="28" fill="#ffffff" filter="url(#shadow)" opacity="0.95"/>
+    <g transform="translate(28 26)">
+      <rect width="66" height="66" rx="18" fill="url(#blue)"/>
+      <path d="M16 43c12-22 29-22 41-4" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+      <path d="M22 25h25c9 0 14 5 14 13v13" fill="none" stroke="#bfdbfe" stroke-width="4.5" stroke-linecap="round"/>
+    </g>
+    <text x="114" y="56" class="ink" font-size="34" font-weight="950">DersFlow</text>
+    <text x="114" y="88" class="muted" font-size="18" font-weight="650">Online ders platformu</text>
+  </g>
+
+  <g class="font" transform="translate(46 245)">
+    <text x="0" y="0" class="ink" font-size="54" font-weight="950">Canli dersi</text>
+    <text x="0" y="62" class="ink" font-size="54" font-weight="950">daha net</text>
+    <text x="0" y="124" class="blueText" font-size="54" font-weight="950">anlat.</text>
+    <text x="0" y="188" class="muted" font-size="23" font-weight="650">Ekran paylasimi, beyaz tahta, PDF materyal ve kayit araclari tek yerde.</text>
+  </g>
+
+  <g class="font" transform="translate(46 515)" filter="url(#shadow)">
+    <rect width="468" height="196" rx="30" fill="url(#ink)"/>
+    <text x="36" y="58" class="white" font-size="26" font-weight="850">Egitmen aboneligi</text>
+    <text x="36" y="136" class="white" font-size="74" font-weight="950">250 TL</text>
+    <text x="296" y="134" fill="#cbd5e1" font-size="24" font-weight="750">/ ay</text>
+  </g>
+
+  <g class="font" transform="translate(46 790)">
+    <text x="0" y="0" class="ink" font-size="30" font-weight="950">Neler var?</text>
+    <g transform="translate(0 52)">
+      <rect width="468" height="86" rx="22" fill="#ffffff" stroke="#d8e2ee"/>
+      <circle cx="43" cy="43" r="18" fill="#dbeafe"/>
+      <path d="M34 43h18M43 34v18" stroke="#2563eb" stroke-width="5" stroke-linecap="round"/>
+      <text x="78" y="39" class="ink" font-size="22" font-weight="850">AirPlay ve ekran paylasimi</text>
+      <text x="78" y="66" class="muted" font-size="17" font-weight="600">Dersi tek link uzerinden aktar.</text>
+    </g>
+    <g transform="translate(0 158)">
+      <rect width="468" height="86" rx="22" fill="#ffffff" stroke="#d8e2ee"/>
+      <circle cx="43" cy="43" r="18" fill="#dcfce7"/>
+      <path d="M34 49l8 8 17-24" stroke="#16a34a" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <text x="78" y="39" class="ink" font-size="22" font-weight="850">PDF, gorsel ve akilli tahta</text>
+      <text x="78" y="66" class="muted" font-size="17" font-weight="600">Materyal uzerinde canli anlatim.</text>
+    </g>
+    <g transform="translate(0 264)">
+      <rect width="468" height="86" rx="22" fill="#ffffff" stroke="#d8e2ee"/>
+      <circle cx="43" cy="43" r="18" fill="#fee2e2"/>
+      <path d="M34 44h20M49 34l10 10-10 10" stroke="#ef233c" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <text x="78" y="39" class="ink" font-size="22" font-weight="850">Kayit, mikrofon ve kamera</text>
+      <text x="78" y="66" class="muted" font-size="17" font-weight="600">Dersleri arsivlemek kolay.</text>
+    </g>
+  </g>
+
+  <g class="font" transform="translate(46 1244)">
+    <rect width="468" height="150" rx="30" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="234" y="56" text-anchor="middle" class="blueText" font-size="27" font-weight="950">Referans koduyla kayit</text>
+    <text x="234" y="94" text-anchor="middle" class="muted" font-size="19" font-weight="650">Yetkili egitmenler oda acabilir,</text>
+    <text x="234" y="122" text-anchor="middle" class="muted" font-size="19" font-weight="650">ogrenciler linkle katilir.</text>
+  </g>
+</svg>
