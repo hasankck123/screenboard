@@ -96,6 +96,15 @@ function broadcast(roomId, payload, exceptId) {
   }
 }
 
+function broadcastTransient(roomId, payload, exceptId) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  room.updatedAt = Date.now();
+  for (const [clientId, client] of room.clients) {
+    if (clientId !== exceptId && client.res) sendEvent(client.res, payload);
+  }
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -680,6 +689,12 @@ function handleRequest(req, res) {
         return;
       }
 
+      if (message.type === "laser") {
+        broadcastTransient(roomId, message, payload.from);
+        json(res, 200, { ok: true });
+        return;
+      }
+
       if (message.type === "board-stroke" && message.stroke) {
         if (room.drawingLocked && !senderIsPresenter) {
           json(res, 403, { ok: false, error: "Izleyici cizimi kapali" });
@@ -726,7 +741,7 @@ server.listen(PORT, "0.0.0.0", () => {
       if (net.family === "IPv4" && !net.internal) addresses.push(`http://${net.address}:${PORT}`);
     }
   }
-  console.log(`ScreenBoard is running at http://localhost:${PORT}`);
+  console.log(`Live classroom server is running at http://localhost:${PORT}`);
   for (const address of addresses) console.log(`LAN: ${address}`);
 });
 
@@ -744,7 +759,7 @@ if (!IS_PRODUCTION && fs.existsSync(CERT_PATH)) {
         if (net.family === "IPv4" && !net.internal) addresses.push(`https://${net.address}:${HTTPS_PORT}`);
       }
     }
-    console.log(`Secure ScreenBoard is running at https://localhost:${HTTPS_PORT}`);
+    console.log(`Secure live classroom server is running at https://localhost:${HTTPS_PORT}`);
     for (const address of addresses) console.log(`Secure LAN: ${address}`);
   });
 } else {
