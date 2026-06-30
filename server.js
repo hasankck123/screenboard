@@ -30,6 +30,7 @@ function participantsFor(room) {
     clientId,
     name: client.name || "Misafir",
     role: room.presenters.has(clientId) ? "presenter" : "viewer",
+    handRaised: Boolean(client.handRaised),
     joinedAt: client.joinedAt
   })).sort((a, b) => a.joinedAt - b.joinedAt);
 }
@@ -55,6 +56,9 @@ function roomFor(id) {
       events: [],
       nextSeq: 1,
       board: [],
+      questions: [],
+      material: null,
+      kicked: new Map(),
       drawingLocked: false,
       passwordHash: "",
       title: "Canli Ders",
@@ -91,7 +95,7 @@ function readBody(req) {
     let body = "";
     req.on("data", chunk => {
       body += chunk;
-      if (body.length > 1_000_000) {
+      if (body.length > 8_000_000) {
         req.destroy();
         reject(new Error("Body too large"));
       }
@@ -197,6 +201,8 @@ function handleRequest(req, res) {
           presenterCount: room.presenters.size,
           maxPresenters: MAX_PRESENTERS,
           participants: participantsFor(room),
+          questions: room.questions,
+          material: room.material,
           board: room.board,
           cursor: room.nextSeq - 1
         });
@@ -274,6 +280,8 @@ function handleRequest(req, res) {
           presenterCount: room.presenters.size,
           maxPresenters: MAX_PRESENTERS,
           participants: participantList,
+          questions: room.questions,
+          material: room.material,
           board: room.board,
           cursor: room.nextSeq - 1
         });
@@ -329,6 +337,8 @@ function handleRequest(req, res) {
       presenterCount: room.presenters.size,
       maxPresenters: MAX_PRESENTERS,
       participants: participantsFor(room),
+      questions: room.questions,
+      material: room.material,
       drawingLocked: room.drawingLocked,
       board: room.board
     });
@@ -387,6 +397,10 @@ function handleRequest(req, res) {
     const client = room.clients.get(clientId);
 
     if (!client) {
+      if (room.kicked.has(clientId)) {
+        json(res, 403, { ok: false, error: "Odadan cikarildin" });
+        return undefined;
+      }
       json(res, 403, { ok: false, error: "Once odaya katil" });
       return undefined;
     }
@@ -401,6 +415,8 @@ function handleRequest(req, res) {
       presenterCount: room.presenters.size,
       maxPresenters: MAX_PRESENTERS,
       participants: participantsFor(room),
+      questions: room.questions,
+      material: room.material,
       events
     });
     return undefined;
@@ -472,6 +488,159 @@ function handleRequest(req, res) {
           sentAt: Date.now()
         });
         json(res, 200, { ok: true, drawingLocked: room.drawingLocked });
+        return;
+      }
+
+      if (message.type === "hand-raise") {
+        if (!sender) {
+          json(res, 403, { ok: false, error: "Once odaya katil" });
+          return;
+        }
+        sender.handRaised = Boolean(message.raised);
+        broadcast(roomId, {
+          type: "presence",
+          action: "update",
+          clientId: payload.from,
+          role: sender.role,
+          title: room.title,
+          presenterId: room.presenterId,
+          presenterCount: room.presenters.size,
+          maxPresenters: MAX_PRESENTERS,
+          participants: participantsFor(room),
+          drawingLocked: room.drawingLocked,
+          sentAt: Date.now()
+        });
+        json(res, 200, { ok: true, participants: participantsFor(room) });
+        return;
+      }
+
+      if (message.type === "question") {
+        if (!sender) {
+          json(res, 403, { ok: false, error: "Once odaya katil" });
+          return;
+        }
+        const text = String(message.text || "").trim().replace(/\s+/g, " ").slice(0, 240);
+        if (!text) {
+          json(res, 400, { ok: false, error: "Soru bos olamaz" });
+          return;
+        }
+        const question = {
+          id: crypto.randomUUID(),
+          from: payload.from,
+          name: sender.name || "Misafir",
+          text,
+          answered: false,
+          createdAt: Date.now()
+        };
+        room.questions.push(question);
+        if (room.questions.length > 50) room.questions.splice(0, room.questions.length - 50);
+        broadcast(roomId, {
+          type: "questions",
+          from: payload.from,
+          roomId,
+          questions: room.questions,
+          sentAt: Date.now()
+        });
+        json(res, 200, { ok: true, questions: room.questions });
+        return;
+      }
+
+      if (message.type === "question-clear") {
+        if (!senderIsPresenter) {
+          json(res, 403, { ok: false, error: "Bu islem sadece sunucu icin" });
+          return;
+        }
+        room.questions = [];
+        broadcast(roomId, {
+          type: "questions",
+          from: payload.from,
+          roomId,
+          questions: room.questions,
+          sentAt: Date.now()
+        });
+        json(res, 200, { ok: true, questions: room.questions });
+        return;
+      }
+
+      if (message.type === "participant-kick") {
+        if (!senderIsPresenter) {
+          json(res, 403, { ok: false, error: "Bu islem sadece sunucu icin" });
+          return;
+        }
+        const targetId = String(message.clientId || "");
+        if (!targetId || targetId === payload.from || !room.clients.has(targetId)) {
+          json(res, 400, { ok: false, error: "Katilimci bulunamadi" });
+          return;
+        }
+        room.clients.delete(targetId);
+        room.presenters.delete(targetId);
+        room.kicked.set(targetId, Date.now());
+        broadcast(roomId, {
+          type: "participant-kicked",
+          from: payload.from,
+          to: targetId,
+          roomId,
+          sentAt: Date.now()
+        });
+        broadcast(roomId, {
+          type: "presence",
+          action: "leave",
+          clientId: targetId,
+          title: room.title,
+          presenterId: room.presenterId,
+          presenterCount: room.presenters.size,
+          maxPresenters: MAX_PRESENTERS,
+          participants: participantsFor(room),
+          drawingLocked: room.drawingLocked,
+          sentAt: Date.now()
+        });
+        json(res, 200, { ok: true, participants: participantsFor(room) });
+        return;
+      }
+
+      if (message.type === "material-set") {
+        if (!senderIsPresenter) {
+          json(res, 403, { ok: false, error: "Bu islem sadece sunucu icin" });
+          return;
+        }
+        const material = message.material || {};
+        const type = material.type === "pdf" ? "pdf" : material.type === "image" ? "image" : "";
+        const dataUrl = String(material.dataUrl || "");
+        if (!type || !dataUrl.startsWith("data:")) {
+          json(res, 400, { ok: false, error: "Materyal okunamadi" });
+          return;
+        }
+        room.material = {
+          type,
+          name: String(material.name || "Materyal").slice(0, 80),
+          dataUrl,
+          updatedAt: Date.now()
+        };
+        broadcast(roomId, {
+          type: "material",
+          from: payload.from,
+          roomId,
+          material: room.material,
+          sentAt: Date.now()
+        });
+        json(res, 200, { ok: true, material: room.material });
+        return;
+      }
+
+      if (message.type === "material-clear") {
+        if (!senderIsPresenter) {
+          json(res, 403, { ok: false, error: "Bu islem sadece sunucu icin" });
+          return;
+        }
+        room.material = null;
+        broadcast(roomId, {
+          type: "material",
+          from: payload.from,
+          roomId,
+          material: null,
+          sentAt: Date.now()
+        });
+        json(res, 200, { ok: true, material: null });
         return;
       }
 
