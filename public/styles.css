@@ -97,7 +97,7 @@ button.requires-auth {
 .lobby-screen {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(220px, 380px) minmax(360px, 520px) minmax(220px, 380px);
+  grid-template-columns: minmax(210px, 300px) minmax(360px, 520px) minmax(210px, 300px);
   gap: clamp(18px, 3vw, 42px);
   place-items: center;
   padding: 24px clamp(18px, 3vw, 44px);
@@ -111,7 +111,7 @@ button.requires-auth {
 
 .lobby-ad {
   width: 100%;
-  max-width: 380px;
+  max-width: 300px;
   align-self: center;
   opacity: 0.96;
   animation: panelIn 360ms ease both;
@@ -120,9 +120,8 @@ button.requires-auth {
 .lobby-ad img {
   display: block;
   width: 100%;
-  max-height: min(74vh, 620px);
-  height: auto;
-  object-fit: contain;
+  height: min(84vh, 780px);
+  object-fit: cover;
   border: 1px solid rgba(214, 221, 232, 0.95);
   border-radius: 8px;
   background: #fff;
@@ -1164,7 +1163,7 @@ input[type="file"] {
 
 @media (max-width: 860px) {
   .lobby-screen {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-content: start;
     gap: 12px;
     padding: 14px;
@@ -1172,17 +1171,20 @@ input[type="file"] {
 
   .lobby-ad {
     display: block;
-    max-width: min(100%, 520px);
+    max-width: 230px;
     justify-self: center;
+    order: 1;
   }
 
   .lobby-ad img {
-    max-height: 150px;
+    height: 150px;
+    max-height: none;
     object-fit: contain;
   }
 
-  .lobby-ad-right {
-    display: none;
+  .lobby-shell {
+    grid-column: 1 / -1;
+    order: 2;
   }
 
   .app {
@@ -1201,7 +1203,7 @@ input[type="file"] {
 
 @media (max-width: 520px) {
   .lobby-ad img {
-    max-height: 118px;
+    height: 112px;
   }
 
   .lobby-shell {
