@@ -786,7 +786,7 @@ input[type="file"] {
 }
 
 #board.laser-mode {
-  cursor: none;
+  cursor: crosshair;
 }
 
 .laser-pointer {
@@ -813,26 +813,25 @@ input[type="file"] {
 .laser-trail {
   position: absolute;
   z-index: 4;
-  width: 14px;
-  height: 14px;
+  height: 5px;
   border-radius: 999px;
-  background: rgba(239, 35, 60, 0.72);
+  background: linear-gradient(90deg, rgba(239, 35, 60, 0.06), rgba(239, 35, 60, 0.86));
   box-shadow:
-    0 0 0 5px rgba(239, 35, 60, 0.10),
-    0 0 18px rgba(239, 35, 60, 0.45);
+    0 0 0 3px rgba(239, 35, 60, 0.08),
+    0 0 18px rgba(239, 35, 60, 0.58);
   pointer-events: none;
-  transform: translate(-50%, -50%);
+  transform-origin: left center;
   animation: laserTrailFade 620ms ease-out forwards;
 }
 
 @keyframes laserTrailFade {
   from {
-    opacity: 0.82;
-    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.9;
+    filter: blur(0);
   }
   to {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.45);
+    filter: blur(2px);
   }
 }
 
