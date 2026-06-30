@@ -76,20 +76,21 @@
           </div>
         </div>
 
-        <div class="share-panel">
-          <button id="startAirPlay" type="button" disabled>AirPlay</button>
-          <button id="startScreen" type="button" disabled>Ekran</button>
-          <button id="startCamera" type="button" disabled>Kamera</button>
-          <button id="stopShare" type="button" disabled>Durdur</button>
-          <button id="toggleSelfCamera" type="button" disabled>On Kamera</button>
-          <button id="toggleMicrophone" type="button" disabled>Mikrofon</button>
-          <button id="toggleRecording" type="button" disabled>Kayit</button>
-        </div>
-
         <div class="tool-panel">
           <div class="segmented" aria-label="Arac">
-            <button id="toolPen" type="button" class="active">Kalem</button>
-            <button id="toolEraser" type="button">Silgi</button>
+            <button id="toolPen" type="button" class="active icon-tool" aria-label="Kalem" title="Kalem">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 20l4.5-1 9.8-9.8a2.1 2.1 0 0 0 0-3l-.5-.5a2.1 2.1 0 0 0-3 0L5 15.5 4 20z"></path>
+                <path d="M13.5 7.1l3.4 3.4"></path>
+              </svg>
+            </button>
+            <button id="toolEraser" type="button" class="icon-tool" aria-label="Silgi" title="Silgi">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 15.5 13.5 7a2.1 2.1 0 0 1 3 0l2.5 2.5a2.1 2.1 0 0 1 0 3L12.5 19H7.8L5 16.2a.5.5 0 0 1 0-.7z"></path>
+                <path d="M11 19h8"></path>
+                <path d="M9.5 11l3.5 3.5"></path>
+              </svg>
+            </button>
           </div>
           <label for="colorPicker">Renk</label>
           <input id="colorPicker" type="color" value="#f24b3d">
@@ -109,6 +110,14 @@
           <div>
             <strong id="roomTitle">Canli Ders</strong>
             <span id="roleTitle">Baglanmadi</span>
+          </div>
+          <div class="top-actions" aria-label="Yayin kontrolleri">
+            <button id="startAirPlay" type="button" disabled>AirPlay</button>
+            <button id="startScreen" type="button" disabled>Ekran</button>
+            <button id="toggleSelfCamera" type="button" disabled>On Kamera</button>
+            <button id="toggleMicrophone" type="button" disabled>Mikrofon</button>
+            <button id="toggleRecording" type="button" disabled>Kayit</button>
+            <button id="stopShare" type="button" disabled>Durdur</button>
           </div>
           <div class="signal">
             <span id="recordingBadge" hidden>Kayit aliniyor</span>

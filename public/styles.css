@@ -200,7 +200,6 @@ h1 {
 
 .room-panel,
 .participants-panel,
-.share-panel,
 .tool-panel {
   display: grid;
   gap: 12px;
@@ -236,7 +235,7 @@ label {
 
 .room-row,
 .room-controls,
-.share-panel,
+.top-actions,
 .tool-actions,
 .segmented {
   display: grid;
@@ -251,13 +250,8 @@ label {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.share-panel,
 .tool-actions,
 .segmented {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.share-panel {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -296,7 +290,9 @@ input[type="range"] {
 #copyInvite,
 #startAirPlay,
 #startScreen,
-#startCamera {
+#toggleSelfCamera,
+#toggleMicrophone,
+#toggleRecording {
   background: linear-gradient(180deg, #2d73de 0%, var(--primary) 100%);
   border-color: var(--primary);
   color: #fff;
@@ -308,7 +304,9 @@ input[type="range"] {
 #copyInvite:hover:not(:disabled),
 #startAirPlay:hover:not(:disabled),
 #startScreen:hover:not(:disabled),
-#startCamera:hover:not(:disabled) {
+#toggleSelfCamera:hover:not(:disabled),
+#toggleMicrophone:hover:not(:disabled),
+#toggleRecording:hover:not(:disabled) {
   background: linear-gradient(180deg, #2869cb 0%, var(--primary-dark) 100%);
   border-color: var(--primary-dark);
   box-shadow: 0 12px 24px rgba(31, 99, 208, 0.26);
@@ -433,6 +431,24 @@ input[type="range"] {
   box-shadow: 0 5px 16px rgba(31, 99, 208, 0.15);
 }
 
+.icon-tool {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+}
+
+.icon-tool svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .stage-wrap {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -445,6 +461,7 @@ input[type="range"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
   min-height: 56px;
   padding: 0 16px;
   border: 1px solid var(--line);
@@ -452,6 +469,19 @@ input[type="range"] {
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 8px 24px rgba(24, 35, 52, 0.08);
   backdrop-filter: blur(10px);
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.top-actions button {
+  min-height: 38px;
+  padding: 0 12px;
 }
 
 #roomTitle {
@@ -578,7 +608,6 @@ input[type="range"] {
 
   .room-row,
   .room-controls,
-  .share-panel,
   .tool-actions {
     grid-template-columns: 1fr;
   }

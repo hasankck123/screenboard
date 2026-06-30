@@ -19,7 +19,6 @@ const els = {
   participantsList: document.querySelector("#participantsList"),
   startAirPlay: document.querySelector("#startAirPlay"),
   startScreen: document.querySelector("#startScreen"),
-  startCamera: document.querySelector("#startCamera"),
   stopShare: document.querySelector("#stopShare"),
   toggleSelfCamera: document.querySelector("#toggleSelfCamera"),
   toggleMicrophone: document.querySelector("#toggleMicrophone"),
@@ -205,7 +204,6 @@ function updateUi() {
   els.closeRoom.disabled = !connected || !isPresenter;
   els.startAirPlay.disabled = !connected || !isPresenter;
   els.startScreen.disabled = !connected || !isPresenter;
-  els.startCamera.disabled = !connected || !isPresenter;
   els.stopShare.disabled = !state.localStream;
   els.toggleSelfCamera.disabled = !isPresenter || !connected;
   els.toggleSelfCamera.textContent = state.selfCameraStream ? "Kamerayi Kapat" : "On Kamera";
@@ -913,7 +911,6 @@ els.copyInvite.addEventListener("click", copyInviteLink);
 els.closeRoom.addEventListener("click", closeRoom);
 els.startAirPlay.addEventListener("click", () => startShare("airplay"));
 els.startScreen.addEventListener("click", () => startShare("screen"));
-els.startCamera.addEventListener("click", () => startShare("camera"));
 els.stopShare.addEventListener("click", () => stopShare(true));
 els.toggleSelfCamera.addEventListener("click", toggleSelfCamera);
 els.toggleMicrophone.addEventListener("click", toggleMicrophone);
