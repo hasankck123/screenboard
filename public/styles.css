@@ -81,6 +81,11 @@ button:disabled {
   box-shadow: none;
 }
 
+button.requires-auth {
+  opacity: 0.58;
+  border-style: dashed;
+}
+
 .hidden {
   display: none !important;
 }
@@ -92,6 +97,8 @@ button:disabled {
 .lobby-screen {
   min-height: 100vh;
   display: grid;
+  grid-template-columns: minmax(120px, 260px) minmax(360px, 520px) minmax(120px, 260px);
+  gap: 22px;
   place-items: center;
   padding: 24px;
   background:
@@ -100,6 +107,32 @@ button:disabled {
     linear-gradient(180deg, #f7f9fc 0%, #edf2f7 100%);
   background-size: 32px 32px;
   animation: screenIn 260ms ease both;
+}
+
+.lobby-ad {
+  width: 100%;
+  max-width: 260px;
+  align-self: center;
+  opacity: 0.96;
+  animation: panelIn 360ms ease both;
+}
+
+.lobby-ad img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid rgba(214, 221, 232, 0.95);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 36px rgba(24, 35, 52, 0.12);
+}
+
+.lobby-ad-left {
+  justify-self: end;
+}
+
+.lobby-ad-right {
+  justify-self: start;
 }
 
 .lobby-shell {
@@ -159,6 +192,10 @@ button:disabled {
   gap: 14px;
 }
 
+.auth-card > #openAuthPanel {
+  width: 100%;
+}
+
 .auth-fields,
 .auth-actions,
 .admin-grid {
@@ -167,7 +204,7 @@ button:disabled {
 }
 
 .auth-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .auth-actions button {
@@ -206,6 +243,46 @@ button:disabled {
 
 .admin-row small {
   color: var(--muted);
+}
+
+.auth-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.auth-popup-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.auth-popup-card {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(214, 221, 232, 0.95);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  animation: panelIn 180ms ease both;
+}
+
+.auth-popup-card strong {
+  font-size: 18px;
+}
+
+.auth-popup-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .lobby-screen.mode-join #createFields {
@@ -1084,6 +1161,14 @@ input[type="file"] {
 }
 
 @media (max-width: 860px) {
+  .lobby-screen {
+    grid-template-columns: 1fr;
+  }
+
+  .lobby-ad {
+    display: none;
+  }
+
   .app {
     grid-template-columns: 1fr;
   }
@@ -1108,6 +1193,11 @@ input[type="file"] {
   .room-controls,
   .question-row,
   .tool-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-actions,
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 

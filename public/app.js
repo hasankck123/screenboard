@@ -19,13 +19,16 @@ const els = {
   authCard: document.querySelector("#authCard"),
   authStatus: document.querySelector("#authStatus"),
   authFields: document.querySelector("#authFields"),
-  authName: document.querySelector("#authName"),
-  authEmail: document.querySelector("#authEmail"),
+  openAuthPanel: document.querySelector("#openAuthPanel"),
+  authUsername: document.querySelector("#authUsername"),
   authPassword: document.querySelector("#authPassword"),
   referralCode: document.querySelector("#referralCode"),
   loginAccount: document.querySelector("#loginAccount"),
   registerAccount: document.querySelector("#registerAccount"),
   logoutAccount: document.querySelector("#logoutAccount"),
+  authPopup: document.querySelector("#authPopup"),
+  closeAuthPopup: document.querySelector("#closeAuthPopup"),
+  authPopupLogin: document.querySelector("#authPopupLogin"),
   adminPanel: document.querySelector("#adminPanel"),
   adminCode: document.querySelector("#adminCode"),
   adminMaxUses: document.querySelector("#adminMaxUses"),
@@ -114,6 +117,7 @@ const state = {
   role: "",
   authToken: localStorage.getItem("dersflow-token") || "",
   authUser: null,
+  authPanelOpen: false,
   lobbyMode: "create",
   source: null,
   events: null,
@@ -178,14 +182,29 @@ function updateAuthUi() {
   els.authStatus.textContent = user
     ? `${user.name || user.email} - ${isAdmin ? "Admin" : "Egitmen"}`
     : "Giris yapilmadi";
+  els.openAuthPanel.hidden = Boolean(user) || state.authPanelOpen;
   els.loginAccount.hidden = Boolean(user);
   els.registerAccount.hidden = Boolean(user);
   els.logoutAccount.hidden = !user;
-  els.authFields.hidden = Boolean(user);
+  els.authFields.hidden = Boolean(user) || !state.authPanelOpen;
   els.adminPanel.hidden = !isAdmin;
   els.roomLobbyCard.hidden = isAdmin;
   els.modeCreate.disabled = isAdmin;
   els.modeJoin.disabled = isAdmin;
+}
+
+function openAuthPanel() {
+  state.authPanelOpen = true;
+  updateAuthUi();
+  els.authUsername.focus();
+}
+
+function openAuthRequiredPopup() {
+  els.authPopup.hidden = false;
+}
+
+function closeAuthRequiredPopup() {
+  els.authPopup.hidden = true;
 }
 
 async function loadAccount() {
@@ -412,7 +431,8 @@ function updateUi() {
   els.roomPassword.disabled = connected;
   els.displayName.disabled = connected;
   els.lessonTitle.disabled = connected;
-  els.createRoom.disabled = connected || !state.authUser;
+  els.createRoom.disabled = connected;
+  els.createRoom.classList.toggle("requires-auth", !connected && !state.authUser);
   els.joinRoom.disabled = connected;
   els.copyInvite.disabled = !connected;
   els.closeRoom.disabled = !connected || !isPresenter;
@@ -723,13 +743,12 @@ async function clearMaterial() {
 async function registerAccount() {
   try {
     setStatus("Kayit olusturuluyor");
-    const name = normalizeName(els.authName.value);
-    const email = els.authEmail.value.trim();
+    const username = normalizeName(els.authUsername.value);
     const password = els.authPassword.value;
     const referralCode = els.referralCode.value.trim();
     const { response, data } = await apiRequest("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ name, email, password, referralCode })
+      body: JSON.stringify({ username, password, referralCode })
     });
     if (!response.ok || !data.ok) {
       setStatus(data.error || "Kayit olusturulamadi");
@@ -745,11 +764,11 @@ async function registerAccount() {
 async function loginAccount() {
   try {
     setStatus("Giris yapiliyor");
-    const email = els.authEmail.value.trim();
+    const username = normalizeName(els.authUsername.value);
     const password = els.authPassword.value;
     const { response, data } = await apiRequest("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ username, password })
     });
     if (!response.ok || !data.ok) {
       setStatus(data.error || "Giris yapilamadi");
@@ -764,6 +783,7 @@ async function loginAccount() {
 }
 
 function logoutAccount() {
+  state.authPanelOpen = false;
   setAuth("", null);
   setStatus("Cikis yapildi");
 }
@@ -850,6 +870,7 @@ async function toggleReferralCode(id, active) {
 async function createRoom() {
   try {
     if (!state.authUser) {
+      openAuthRequiredPopup();
       setStatus("Oda olusturmak icin giris yap");
       return;
     }
@@ -1742,9 +1763,15 @@ function setPenStyle(style) {
 
 els.createRoom.addEventListener("click", createRoom);
 els.joinRoom.addEventListener("click", () => connect("viewer"));
+els.openAuthPanel.addEventListener("click", openAuthPanel);
 els.loginAccount.addEventListener("click", loginAccount);
 els.registerAccount.addEventListener("click", registerAccount);
 els.logoutAccount.addEventListener("click", logoutAccount);
+els.closeAuthPopup.addEventListener("click", closeAuthRequiredPopup);
+els.authPopupLogin.addEventListener("click", () => {
+  closeAuthRequiredPopup();
+  openAuthPanel();
+});
 els.createReferralCode.addEventListener("click", createReferralCode);
 els.refreshAdmin.addEventListener("click", refreshAdminPanel);
 els.openHelp.addEventListener("click", openHelpModal);

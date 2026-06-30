@@ -8,6 +8,9 @@
   </head>
   <body>
     <section class="lobby-screen" id="lobbyScreen">
+      <aside class="lobby-ad lobby-ad-left" aria-label="DersFlow afis">
+        <img src="assets/dersflow-afis.svg" alt="DersFlow abonelik afisi">
+      </aside>
       <div class="lobby-shell">
         <div class="lobby-brand">
           <img class="brand-mark" src="assets/dersflow-mark.svg" alt="">
@@ -22,9 +25,9 @@
             <strong>Hesap</strong>
             <span id="authStatus">Giris yapilmadi</span>
           </div>
-          <div id="authFields" class="auth-fields">
-            <input id="authName" autocomplete="name" maxlength="32" placeholder="Ad Soyad">
-            <input id="authEmail" autocomplete="username" placeholder="E-posta / admin kullanici adi">
+          <button id="openAuthPanel" type="button">Giris Yap / Kayit Ol</button>
+          <div id="authFields" class="auth-fields" hidden>
+            <input id="authUsername" autocomplete="username" maxlength="32" placeholder="Kullanici adi">
             <input id="authPassword" type="password" autocomplete="current-password" placeholder="Sifre">
             <input id="referralCode" autocomplete="off" spellcheck="false" maxlength="32" placeholder="Referans kodu">
           </div>
@@ -77,7 +80,19 @@
           <button id="openHelp" type="button" class="ghost-button">Nasil kullanilir?</button>
         </div>
       </div>
+      <aside class="lobby-ad lobby-ad-right" aria-label="DersFlow afis">
+        <img src="assets/dersflow-afis.svg" alt="DersFlow abonelik afisi">
+      </aside>
     </section>
+
+    <div class="auth-popup" id="authPopup" hidden role="dialog" aria-modal="true" aria-labelledby="authPopupTitle">
+      <div class="auth-popup-backdrop" id="closeAuthPopup"></div>
+      <section class="auth-popup-card">
+        <strong id="authPopupTitle">Kayit gerekli</strong>
+        <p>Oda olusturmak icin once referans kodu ile kayit olman veya hesabina giris yapman gerekmektedir.</p>
+        <button id="authPopupLogin" type="button">Giris / Kayit ekranini ac</button>
+      </section>
+    </div>
 
     <main class="app hidden" id="appShell">
       <section class="side">
