@@ -21,6 +21,12 @@ function normalizeTitle(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 64) || "Canli Ders";
 }
 
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
 function passwordHash(value) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex");
 }
@@ -614,8 +620,38 @@ function handleRequest(req, res) {
           type,
           name: String(material.name || "Materyal").slice(0, 80),
           dataUrl,
+          scale: clampNumber(material.scale, 40, 160, 100),
+          page: Math.round(clampNumber(material.page, 1, 9999, 1)),
           updatedAt: Date.now()
         };
+        broadcast(roomId, {
+          type: "material",
+          from: payload.from,
+          roomId,
+          material: room.material,
+          sentAt: Date.now()
+        });
+        json(res, 200, { ok: true, material: room.material });
+        return;
+      }
+
+      if (message.type === "material-update") {
+        if (!senderIsPresenter) {
+          json(res, 403, { ok: false, error: "Bu islem sadece sunucu icin" });
+          return;
+        }
+        if (!room.material) {
+          json(res, 404, { ok: false, error: "Materyal yok" });
+          return;
+        }
+        const options = message.options || {};
+        if (room.material.type === "image" && options.scale !== undefined) {
+          room.material.scale = clampNumber(options.scale, 40, 160, room.material.scale || 100);
+        }
+        if (room.material.type === "pdf" && options.page !== undefined) {
+          room.material.page = Math.round(clampNumber(options.page, 1, 9999, room.material.page || 1));
+        }
+        room.material.updatedAt = Date.now();
         broadcast(roomId, {
           type: "material",
           from: payload.from,
