@@ -76,6 +76,31 @@
           </div>
         </div>
 
+        <div class="interaction-panel">
+          <div class="panel-heading">
+            <strong>Sorular</strong>
+            <button id="clearQuestions" type="button" disabled>Temizle</button>
+          </div>
+          <button id="raiseHand" type="button" disabled>El Kaldir</button>
+          <div class="question-row">
+            <input id="questionInput" maxlength="240" placeholder="Sorunu yaz">
+            <button id="sendQuestion" type="button" disabled>Gonder</button>
+          </div>
+          <div id="questionsList" class="questions-list">
+            <span class="empty-participant">Henuz soru yok.</span>
+          </div>
+        </div>
+
+        <div class="material-panel">
+          <div class="panel-heading">
+            <strong>Materyal</strong>
+            <button id="clearMaterial" type="button" disabled>Temizle</button>
+          </div>
+          <label class="file-button" for="materialInput">PDF / Gorsel Ekle</label>
+          <input id="materialInput" type="file" accept="image/*,application/pdf">
+          <span id="materialName" class="empty-participant">Materyal yok.</span>
+        </div>
+
         <div class="tool-panel">
           <div class="segmented" aria-label="Arac">
             <button id="toolPen" type="button" class="active icon-tool" aria-label="Kalem" title="Kalem">
@@ -120,9 +145,9 @@
             <button id="stopShare" type="button" disabled>Durdur</button>
           </div>
           <div class="viewer-greeting" id="viewerGreeting" hidden>
-            <span class="study-icon">✦</span>
+            <span class="study-icon">*</span>
             <strong>Iyi dersler</strong>
-            <span class="study-icon">◇</span>
+            <span class="study-icon">&lt;&gt;</span>
           </div>
           <div class="signal">
             <span id="recordingBadge" hidden>Kayit aliniyor</span>
@@ -132,6 +157,10 @@
         </div>
 
         <div class="stage" id="stage">
+          <div id="materialLayer" class="material-layer" hidden>
+            <img id="materialImage" alt="">
+            <iframe id="materialPdf" title="PDF materyal"></iframe>
+          </div>
           <video id="remoteVideo" autoplay playsinline></video>
           <video id="selfCamera" autoplay muted playsinline></video>
           <div id="emptyState"></div>

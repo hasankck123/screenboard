@@ -17,6 +17,17 @@ const els = {
   sessionBadge: document.querySelector("#sessionBadge"),
   participantCount: document.querySelector("#participantCount"),
   participantsList: document.querySelector("#participantsList"),
+  raiseHand: document.querySelector("#raiseHand"),
+  questionInput: document.querySelector("#questionInput"),
+  sendQuestion: document.querySelector("#sendQuestion"),
+  clearQuestions: document.querySelector("#clearQuestions"),
+  questionsList: document.querySelector("#questionsList"),
+  materialInput: document.querySelector("#materialInput"),
+  clearMaterial: document.querySelector("#clearMaterial"),
+  materialName: document.querySelector("#materialName"),
+  materialLayer: document.querySelector("#materialLayer"),
+  materialImage: document.querySelector("#materialImage"),
+  materialPdf: document.querySelector("#materialPdf"),
   startAirPlay: document.querySelector("#startAirPlay"),
   startScreen: document.querySelector("#startScreen"),
   stopShare: document.querySelector("#stopShare"),
@@ -85,6 +96,8 @@ const state = {
   peers: new Map(),
   connectedPeers: new Set(),
   participants: [],
+  questions: [],
+  material: null,
   tool: "pen",
   strokes: [],
   ownStrokes: [],
@@ -159,6 +172,7 @@ function requireLobbyFields(requireRoom) {
 
 function renderParticipants() {
   const participants = state.participants || [];
+  const isPresenter = state.role === "presenter";
   els.participantCount.textContent = `${participants.length} kisi`;
   if (!participants.length) {
     els.participantsList.innerHTML = "<span class=\"empty-participant\">Odaya girince burada gorunur.</span>";
@@ -180,12 +194,69 @@ function renderParticipants() {
     name.textContent = participant.clientId === clientId ? `${participant.name} (Sen)` : participant.name;
 
     const role = document.createElement("small");
-    role.textContent = participant.role === "presenter" ? "Sunucu" : "Izleyici";
+    role.textContent = `${participant.role === "presenter" ? "Sunucu" : "Izleyici"}${participant.handRaised ? " - El kaldirdi" : ""}`;
 
     meta.append(name, role);
     row.append(avatar, meta);
+    if (participant.handRaised) {
+      const hand = document.createElement("span");
+      hand.className = "hand-badge";
+      hand.textContent = "El";
+      row.append(hand);
+    }
+    if (isPresenter && participant.clientId !== clientId) {
+      const kick = document.createElement("button");
+      kick.type = "button";
+      kick.className = "kick-button";
+      kick.textContent = "Cikar";
+      kick.addEventListener("click", () => kickParticipant(participant.clientId));
+      row.append(kick);
+    }
     return row;
   }));
+}
+
+function renderQuestions() {
+  const questions = state.questions || [];
+  if (!questions.length) {
+    els.questionsList.innerHTML = "<span class=\"empty-participant\">Henuz soru yok.</span>";
+    return;
+  }
+  els.questionsList.replaceChildren(...questions.slice().reverse().map(question => {
+    const row = document.createElement("div");
+    row.className = "question";
+
+    const meta = document.createElement("small");
+    meta.textContent = question.name || "Misafir";
+
+    const text = document.createElement("span");
+    text.textContent = question.text || "";
+
+    row.append(meta, text);
+    return row;
+  }));
+}
+
+function renderMaterial() {
+  const material = state.material;
+  els.materialLayer.hidden = !material;
+  els.materialImage.hidden = true;
+  els.materialPdf.hidden = true;
+  els.materialName.textContent = material ? material.name : "Materyal yok.";
+  if (!material) {
+    els.materialImage.removeAttribute("src");
+    els.materialPdf.removeAttribute("src");
+    return;
+  }
+  if (material.type === "image") {
+    els.materialImage.src = material.dataUrl;
+    els.materialImage.hidden = false;
+    els.materialPdf.removeAttribute("src");
+  } else {
+    els.materialPdf.src = material.dataUrl;
+    els.materialPdf.hidden = false;
+    els.materialImage.removeAttribute("src");
+  }
 }
 
 function updateUi() {
@@ -208,6 +279,16 @@ function updateUi() {
   els.closeRoom.disabled = !connected || !isPresenter;
   els.copyInvite.hidden = connected && !isPresenter;
   els.closeRoom.hidden = connected && !isPresenter;
+  els.clearQuestions.hidden = !isPresenter;
+  els.clearQuestions.disabled = !connected || !isPresenter || state.questions.length === 0;
+  els.raiseHand.hidden = !connected || isPresenter;
+  els.raiseHand.disabled = !connected || isPresenter;
+  const self = state.participants.find(participant => participant.clientId === clientId);
+  els.raiseHand.textContent = self?.handRaised ? "Eli Indir" : "El Kaldir";
+  els.sendQuestion.disabled = !connected || !els.questionInput.value.trim();
+  els.materialInput.disabled = !connected || !isPresenter;
+  els.clearMaterial.disabled = !connected || !isPresenter || !state.material;
+  els.materialInput.closest(".material-panel").hidden = !isPresenter;
   els.topActions.hidden = connected && !isPresenter;
   els.viewerGreeting.hidden = !connected || isPresenter;
   els.startAirPlay.disabled = !connected || !isPresenter;
@@ -232,6 +313,8 @@ function updateUi() {
   els.emptyState.classList.toggle("hidden", Boolean(els.remoteVideo.srcObject));
   els.board.classList.toggle("locked", state.drawingLocked && !isPresenter);
   renderParticipants();
+  renderQuestions();
+  renderMaterial();
 }
 
 async function postMessage(payload) {
@@ -265,11 +348,17 @@ function startPolling() {
           leaveRoom("Oda kapatildi");
           return;
         }
+        if (data.error === "Odadan cikarildin") {
+          leaveRoom("Odadan cikarildin");
+          return;
+        }
         setStatus(data.error || "Canli baglanti bekleniyor");
       } else {
         state.cursor = Number(data.cursor || state.cursor);
         if (typeof data.drawingLocked === "boolean") state.drawingLocked = data.drawingLocked;
         if (Array.isArray(data.participants)) state.participants = data.participants;
+        if (Array.isArray(data.questions)) state.questions = data.questions;
+        if ("material" in data) state.material = data.material || null;
         for (const event of data.events || []) handleEvent(event);
         updateUi();
       }
@@ -297,6 +386,8 @@ function applyJoin(roomId, role, joinData) {
   state.drawingLocked = Boolean(joinData.drawingLocked);
   state.cursor = Number(joinData.cursor || 0);
   state.participants = Array.isArray(joinData.participants) ? joinData.participants : [];
+  state.questions = Array.isArray(joinData.questions) ? joinData.questions : [];
+  state.material = joinData.material || null;
   state.strokes = Array.isArray(joinData.board) ? joinData.board : [];
   redraw();
   startPolling();
@@ -315,6 +406,8 @@ function leaveRoom(message = "Oda kapatildi") {
   state.title = "Canli Ders";
   state.cursor = 0;
   state.participants = [];
+  state.questions = [];
+  state.material = null;
   state.strokes = [];
   state.ownStrokes = [];
   state.drawingLocked = false;
@@ -355,6 +448,91 @@ async function closeRoom() {
   } catch (error) {
     setStatus("Oda kapatilamadi");
   }
+}
+
+async function toggleRaiseHand() {
+  const self = state.participants.find(participant => participant.clientId === clientId);
+  const response = await postMessage({ type: "hand-raise", raised: !self?.handRaised });
+  if (response?.participants) state.participants = response.participants;
+  updateUi();
+}
+
+async function sendQuestion() {
+  const text = els.questionInput.value.trim();
+  if (!text) return;
+  const response = await postMessage({ type: "question", text });
+  if (response?.questions) state.questions = response.questions;
+  els.questionInput.value = "";
+  updateUi();
+}
+
+async function clearQuestions() {
+  if (state.role !== "presenter") return;
+  const response = await postMessage({ type: "question-clear" });
+  if (response?.questions) state.questions = response.questions;
+  updateUi();
+}
+
+async function kickParticipant(targetId) {
+  if (state.role !== "presenter") return;
+  const target = state.participants.find(participant => participant.clientId === targetId);
+  const confirmed = window.confirm(`${target?.name || "Katilimci"} odadan cikarilsin mi?`);
+  if (!confirmed) return;
+  const response = await postMessage({ type: "participant-kick", clientId: targetId });
+  if (response?.participants) state.participants = response.participants;
+  updateUi();
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Dosya okunamadi"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadMaterial() {
+  if (state.role !== "presenter") return;
+  const file = els.materialInput.files?.[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    setStatus("Materyal 5 MB'den kucuk olmali");
+    els.materialInput.value = "";
+    return;
+  }
+  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  const isImage = file.type.startsWith("image/");
+  if (!isPdf && !isImage) {
+    setStatus("Sadece PDF veya gorsel eklenebilir");
+    els.materialInput.value = "";
+    return;
+  }
+  try {
+    setStatus("Materyal yukleniyor");
+    const dataUrl = await readFileAsDataUrl(file);
+    const response = await postMessage({
+      type: "material-set",
+      material: {
+        type: isPdf ? "pdf" : "image",
+        name: file.name,
+        dataUrl
+      }
+    });
+    if (response?.material !== undefined) state.material = response.material;
+    setStatus("Materyal eklendi");
+  } catch (error) {
+    setStatus("Materyal eklenemedi");
+  }
+  els.materialInput.value = "";
+  updateUi();
+}
+
+async function clearMaterial() {
+  if (state.role !== "presenter") return;
+  const response = await postMessage({ type: "material-clear" });
+  if (response?.material === null) state.material = null;
+  updateUi();
 }
 
 async function createRoom() {
@@ -417,6 +595,8 @@ function handleEvent(message) {
     state.drawingLocked = Boolean(message.drawingLocked);
     if (message.title) state.title = normalizeTitle(message.title);
     if (Array.isArray(message.participants)) state.participants = message.participants;
+    if (Array.isArray(message.questions)) state.questions = message.questions;
+    if ("material" in message) state.material = message.material || null;
     redraw();
     if (state.role === "viewer" && message.presenterId) {
       postMessage({ type: "viewer-ready", to: message.presenterId });
@@ -434,6 +614,18 @@ function handleEvent(message) {
     }
     if (typeof message.drawingLocked === "boolean") state.drawingLocked = message.drawingLocked;
     updateUi();
+  }
+  if (message.type === "questions") {
+    state.questions = Array.isArray(message.questions) ? message.questions : [];
+    updateUi();
+  }
+  if (message.type === "material") {
+    state.material = message.material || null;
+    updateUi();
+  }
+  if (message.type === "participant-kicked") {
+    if (message.to === clientId) leaveRoom("Odadan cikarildin");
+    return;
   }
   if (message.type === "room-closed") {
     leaveRoom("Oda sunucu tarafindan kapatildi");
@@ -699,8 +891,8 @@ function ensureRecordCanvas() {
 }
 
 function drawContain(ctx, video, x, y, width, height) {
-  const sourceWidth = video.videoWidth || width;
-  const sourceHeight = video.videoHeight || height;
+  const sourceWidth = video.videoWidth || video.naturalWidth || width;
+  const sourceHeight = video.videoHeight || video.naturalHeight || height;
   const scale = Math.min(width / sourceWidth, height / sourceHeight);
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
@@ -732,6 +924,8 @@ function drawRecordingFrame() {
 
   if (els.remoteVideo.srcObject && els.remoteVideo.readyState >= 2) {
     drawContain(ctx, els.remoteVideo, 0, 0, width, height);
+  } else if (state.material?.type === "image" && els.materialImage.complete && els.materialImage.naturalWidth) {
+    drawContain(ctx, els.materialImage, 0, 0, width, height);
   } else {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
@@ -921,6 +1115,18 @@ els.modeCreate.addEventListener("click", () => setLobbyMode("create"));
 els.modeJoin.addEventListener("click", () => setLobbyMode("join"));
 els.copyInvite.addEventListener("click", copyInviteLink);
 els.closeRoom.addEventListener("click", closeRoom);
+els.raiseHand.addEventListener("click", toggleRaiseHand);
+els.sendQuestion.addEventListener("click", sendQuestion);
+els.clearQuestions.addEventListener("click", clearQuestions);
+els.questionInput.addEventListener("input", updateUi);
+els.questionInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    sendQuestion();
+  }
+});
+els.materialInput.addEventListener("change", uploadMaterial);
+els.clearMaterial.addEventListener("click", clearMaterial);
 els.startAirPlay.addEventListener("click", () => startShare("airplay"));
 els.startScreen.addEventListener("click", () => startShare("screen"));
 els.stopShare.addEventListener("click", () => stopShare(true));
