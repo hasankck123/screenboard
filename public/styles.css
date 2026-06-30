@@ -290,6 +290,32 @@ label {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.pen-styles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.pen-styles button {
+  min-height: 34px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+}
+
+.pen-styles button.active {
+  border-color: var(--primary);
+  background: #fff;
+  color: var(--primary-dark);
+  box-shadow: 0 5px 16px rgba(31, 99, 208, 0.13);
+}
+
 input[type="text"],
 input:not([type]),
 input[type="password"],

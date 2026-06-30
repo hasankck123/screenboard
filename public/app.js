@@ -53,6 +53,7 @@ const els = {
   toolPointer: document.querySelector("#toolPointer"),
   toolPen: document.querySelector("#toolPen"),
   toolEraser: document.querySelector("#toolEraser"),
+  penStyleButtons: [...document.querySelectorAll("[data-pen-style]")],
   colorPicker: document.querySelector("#colorPicker"),
   sizePicker: document.querySelector("#sizePicker"),
   sizeValue: document.querySelector("#sizeValue"),
@@ -104,6 +105,7 @@ const state = {
   questions: [],
   material: null,
   tool: "pen",
+  penStyle: "fine",
   strokes: [],
   ownStrokes: [],
   activeStroke: null,
@@ -1133,23 +1135,86 @@ function pointFor(event) {
   };
 }
 
+function pointToCanvas(point, rect) {
+  return {
+    x: point.x * rect.width,
+    y: point.y * rect.height
+  };
+}
+
+function applyStrokeStyle(stroke) {
+  const style = stroke.penStyle || "fine";
+  const baseSize = stroke.size || 5;
+  ctx.globalCompositeOperation = stroke.tool === "eraser" ? "destination-out" : "source-over";
+  ctx.strokeStyle = stroke.color || "#f24b3d";
+  ctx.lineWidth = baseSize;
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  if (stroke.tool !== "eraser" && style === "marker") {
+    ctx.lineWidth = baseSize * 1.35;
+    ctx.shadowBlur = Math.max(2, baseSize * 0.35);
+    ctx.shadowColor = stroke.color || "#f24b3d";
+  }
+  if (stroke.tool !== "eraser" && style === "highlighter") {
+    ctx.globalAlpha = 0.36;
+    ctx.lineWidth = baseSize * 2.2;
+  }
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+}
+
+function drawRecognizedShape(stroke, rect) {
+  const shape = stroke.shape;
+  if (!shape) return false;
+  const left = shape.left * rect.width;
+  const top = shape.top * rect.height;
+  const width = shape.width * rect.width;
+  const height = shape.height * rect.height;
+  const centerX = left + width / 2;
+  const centerY = top + height / 2;
+  const radius = Math.min(width, height) / 2;
+
+  ctx.beginPath();
+  if (shape.type === "circle") {
+    ctx.ellipse(centerX, centerY, radius, radius, 0, 0, Math.PI * 2);
+  } else {
+    const sides = shape.type === "triangle" ? 3 : shape.type === "square" ? 4 : shape.type === "pentagon" ? 5 : 0;
+    const vertices = shape.type === "star" ? 10 : sides;
+    const startAngle = shape.type === "square" ? Math.PI / 4 : -Math.PI / 2;
+    for (let index = 0; index < vertices; index += 1) {
+      const angle = startAngle + (Math.PI * 2 * index) / vertices;
+      const pointRadius = shape.type === "star" && index % 2 === 1 ? radius * 0.45 : radius;
+      const x = centerX + Math.cos(angle) * pointRadius;
+      const y = centerY + Math.sin(angle) * pointRadius;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+  }
+  ctx.stroke();
+  return true;
+}
+
 function drawStroke(stroke) {
   const rect = els.board.getBoundingClientRect();
   const points = stroke.points || [];
   if (points.length < 1) return;
   ctx.save();
-  ctx.globalCompositeOperation = stroke.tool === "eraser" ? "destination-out" : "source-over";
-  ctx.strokeStyle = stroke.color || "#f24b3d";
-  ctx.lineWidth = stroke.size || 5;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
+  applyStrokeStyle(stroke);
+  if (drawRecognizedShape(stroke, rect)) {
+    ctx.restore();
+    return;
+  }
   ctx.beginPath();
-  ctx.moveTo(points[0].x * rect.width, points[0].y * rect.height);
+  const first = pointToCanvas(points[0], rect);
+  ctx.moveTo(first.x, first.y);
   for (let index = 1; index < points.length; index += 1) {
-    ctx.lineTo(points[index].x * rect.width, points[index].y * rect.height);
+    const point = pointToCanvas(points[index], rect);
+    ctx.lineTo(point.x, point.y);
   }
   if (points.length === 1) {
-    ctx.lineTo(points[0].x * rect.width + 0.01, points[0].y * rect.height + 0.01);
+    ctx.lineTo(first.x + 0.01, first.y + 0.01);
   }
   ctx.stroke();
   ctx.restore();
@@ -1159,6 +1224,95 @@ function redraw() {
   const rect = els.board.getBoundingClientRect();
   ctx.clearRect(0, 0, rect.width, rect.height);
   for (const stroke of state.strokes) drawStroke(stroke);
+}
+
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function strokeBounds(points) {
+  const xs = points.map(point => point.x);
+  const ys = points.map(point => point.y);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys);
+  return {
+    left,
+    top,
+    width: right - left,
+    height: bottom - top
+  };
+}
+
+function perpendicularDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  if (!length) return distance(point, start);
+  return Math.abs(dy * point.x - dx * point.y + end.x * start.y - end.y * start.x) / length;
+}
+
+function simplifyPoints(points, epsilon) {
+  if (points.length <= 2) return points;
+  let maxDistance = 0;
+  let splitIndex = 0;
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const currentDistance = perpendicularDistance(points[index], points[0], points[points.length - 1]);
+    if (currentDistance > maxDistance) {
+      maxDistance = currentDistance;
+      splitIndex = index;
+    }
+  }
+  if (maxDistance <= epsilon) return [points[0], points[points.length - 1]];
+  const left = simplifyPoints(points.slice(0, splitIndex + 1), epsilon);
+  const right = simplifyPoints(points.slice(splitIndex), epsilon);
+  return left.slice(0, -1).concat(right);
+}
+
+function normalizeShapeBounds(bounds, shapeType) {
+  if (shapeType === "circle" || shapeType === "square" || shapeType === "pentagon" || shapeType === "star") {
+    const side = Math.max(bounds.width, bounds.height);
+    return {
+      left: bounds.left + (bounds.width - side) / 2,
+      top: bounds.top + (bounds.height - side) / 2,
+      width: side,
+      height: side
+    };
+  }
+  return bounds;
+}
+
+function recognizeShape(stroke) {
+  if (stroke.tool !== "pen") return null;
+  const points = stroke.points || [];
+  if (points.length < 12) return null;
+  const bounds = strokeBounds(points);
+  const diagonal = Math.hypot(bounds.width, bounds.height);
+  if (diagonal < 0.035) return null;
+  const closed = distance(points[0], points[points.length - 1]) < diagonal * 0.28;
+  if (!closed) return null;
+
+  const center = { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
+  const radii = points.map(point => distance(point, center));
+  const averageRadius = radii.reduce((sum, value) => sum + value, 0) / radii.length;
+  const radiusVariance = radii.reduce((sum, value) => sum + Math.abs(value - averageRadius), 0) / (radii.length * averageRadius);
+  const ratio = bounds.width / Math.max(bounds.height, 0.001);
+  if (ratio > 0.72 && ratio < 1.28 && radiusVariance < 0.18) {
+    return { type: "circle", ...normalizeShapeBounds(bounds, "circle") };
+  }
+
+  const openPoints = distance(points[0], points[points.length - 1]) < diagonal * 0.12 ? points.slice(0, -1) : points;
+  const simplified = simplifyPoints(openPoints, diagonal * 0.09)
+    .filter((point, index, list) => index === 0 || distance(point, list[index - 1]) > diagonal * 0.08);
+  const corners = Math.max(3, Math.min(12, simplified.length));
+  if (corners >= 8 && corners <= 12) {
+    return { type: "star", ...normalizeShapeBounds(bounds, "star") };
+  }
+  if (corners <= 3) return { type: "triangle", ...normalizeShapeBounds(bounds, "triangle") };
+  if (corners === 4) return { type: "square", ...normalizeShapeBounds(bounds, "square") };
+  if (corners === 5 || corners === 6) return { type: "pentagon", ...normalizeShapeBounds(bounds, "pentagon") };
+  return null;
 }
 
 function beginStroke(event) {
@@ -1176,6 +1330,7 @@ function beginStroke(event) {
     id: makeId(),
     author: clientId,
     tool: state.tool,
+    penStyle: state.penStyle,
     color: els.colorPicker.value,
     size: Number(els.sizePicker.value),
     points: [pointFor(event)]
@@ -1196,9 +1351,10 @@ async function endStroke(event) {
   if (!state.activeStroke) return;
   const stroke = state.activeStroke;
   state.activeStroke = null;
+  stroke.shape = recognizeShape(stroke);
   state.strokes.push(stroke);
   state.ownStrokes.push(stroke.id);
-  drawStroke(stroke);
+  redraw();
   const response = await postMessage({ type: "board-stroke", stroke });
   if (response && !response.ok) {
     state.strokes = state.strokes.filter(item => item.id !== stroke.id);
@@ -1215,6 +1371,14 @@ function setTool(tool) {
   els.toolPen.classList.toggle("active", state.tool === "pen");
   els.toolEraser.classList.toggle("active", state.tool === "eraser");
   updateUi();
+}
+
+function setPenStyle(style) {
+  state.penStyle = ["fine", "marker", "highlighter"].includes(style) ? style : "fine";
+  for (const button of els.penStyleButtons) {
+    button.classList.toggle("active", button.dataset.penStyle === state.penStyle);
+  }
+  setTool("pen");
 }
 
 els.createRoom.addEventListener("click", createRoom);
@@ -1246,6 +1410,9 @@ els.toggleRecording.addEventListener("click", toggleRecording);
 els.toolPointer.addEventListener("click", () => setTool("pointer"));
 els.toolPen.addEventListener("click", () => setTool("pen"));
 els.toolEraser.addEventListener("click", () => setTool("eraser"));
+for (const button of els.penStyleButtons) {
+  button.addEventListener("click", () => setPenStyle(button.dataset.penStyle));
+}
 els.sizePicker.addEventListener("input", () => {
   els.sizeValue.textContent = els.sizePicker.value;
 });
