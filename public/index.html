@@ -36,6 +36,9 @@
           <button id="startScreen" type="button" disabled>Ekran</button>
           <button id="startCamera" type="button" disabled>Kamera</button>
           <button id="stopShare" type="button" disabled>Durdur</button>
+          <button id="toggleSelfCamera" type="button" disabled>On Kamera</button>
+          <button id="toggleMicrophone" type="button" disabled>Mikrofon</button>
+          <button id="toggleRecording" type="button" disabled>Kayit</button>
         </div>
 
         <div class="tool-panel">
@@ -70,6 +73,7 @@
 
         <div class="stage" id="stage">
           <video id="remoteVideo" autoplay playsinline></video>
+          <video id="selfCamera" autoplay muted playsinline></video>
           <div id="emptyState">
             <h2>Beyaz tahta</h2>
             <p>AirServer penceresi ve cizimler burada gorunur.</p>

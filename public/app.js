@@ -8,12 +8,16 @@ const els = {
   startScreen: document.querySelector("#startScreen"),
   startCamera: document.querySelector("#startCamera"),
   stopShare: document.querySelector("#stopShare"),
+  toggleSelfCamera: document.querySelector("#toggleSelfCamera"),
+  toggleMicrophone: document.querySelector("#toggleMicrophone"),
+  toggleRecording: document.querySelector("#toggleRecording"),
   statusText: document.querySelector("#statusText"),
   roomTitle: document.querySelector("#roomTitle"),
   roleTitle: document.querySelector("#roleTitle"),
   peerCount: document.querySelector("#peerCount"),
   mirrorState: document.querySelector("#mirrorState"),
   remoteVideo: document.querySelector("#remoteVideo"),
+  selfCamera: document.querySelector("#selfCamera"),
   emptyState: document.querySelector("#emptyState"),
   board: document.querySelector("#board"),
   toolPen: document.querySelector("#toolPen"),
@@ -54,6 +58,13 @@ const state = {
   pollTimer: null,
   cursor: 0,
   localStream: null,
+  selfCameraStream: null,
+  micStream: null,
+  recorder: null,
+  recordChunks: [],
+  recordCanvas: null,
+  recordCtx: null,
+  recordFrame: 0,
   peers: new Map(),
   connectedPeers: new Set(),
   tool: "pen",
@@ -82,6 +93,12 @@ function updateUi() {
   els.startScreen.disabled = !connected || !isPresenter;
   els.startCamera.disabled = !connected || !isPresenter;
   els.stopShare.disabled = !state.localStream;
+  els.toggleSelfCamera.disabled = !isPresenter || !connected;
+  els.toggleSelfCamera.textContent = state.selfCameraStream ? "Kamerayi Kapat" : "On Kamera";
+  els.toggleMicrophone.disabled = !isPresenter || !connected;
+  els.toggleMicrophone.textContent = state.micStream ? "Mikrofonu Kapat" : "Mikrofon";
+  els.toggleRecording.disabled = !connected || Boolean(state.recorder && state.recorder.state === "stopping");
+  els.toggleRecording.textContent = state.recorder?.state === "recording" ? "Kaydi Durdur" : "Kayit";
   els.toggleViewerDraw.hidden = !isPresenter;
   els.toggleViewerDraw.disabled = !isPresenter || !connected;
   els.toggleViewerDraw.textContent = state.drawingLocked ? "Izleyici cizimi ac" : "Izleyici cizimi kapat";
@@ -309,6 +326,11 @@ async function startShare(kind) {
         audio: kind !== "airplay"
       })
       : await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    if (state.micStream) {
+      for (const track of state.micStream.getAudioTracks()) {
+        state.localStream.addTrack(track);
+      }
+    }
     els.remoteVideo.srcObject = state.localStream;
     els.remoteVideo.muted = true;
     els.remoteVideo.classList.add("live");
@@ -328,6 +350,7 @@ function stopShare(notify = true) {
     for (const track of state.localStream.getTracks()) track.stop();
   }
   state.localStream = null;
+  clearMicrophone(false);
   if (state.role === "presenter") {
     clearRemoteVideo();
   }
@@ -336,6 +359,94 @@ function stopShare(notify = true) {
   state.connectedPeers.clear();
   if (notify) postMessage({ type: "presenter-stopped", to: null });
   updateUi();
+}
+
+async function toggleMicrophone() {
+  if (state.micStream) {
+    clearMicrophone(true);
+    setStatus("Mikrofon kapali");
+    updateUi();
+    return;
+  }
+  try {
+    state.micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      },
+      video: false
+    });
+    if (state.localStream) {
+      for (const track of state.micStream.getAudioTracks()) {
+        state.localStream.addTrack(track);
+        for (const pc of state.peers.values()) {
+          pc.addTrack(track, state.localStream);
+        }
+      }
+      await postMessage({ type: "presenter-online", to: null });
+    }
+    setStatus(state.recorder?.state === "recording"
+      ? "Mikrofon acik; kayit icin kaydi yeniden baslat"
+      : "Mikrofon acik");
+  } catch (error) {
+    setStatus(error.name === "NotAllowedError" ? "Mikrofon izni verilmedi" : "Mikrofon acilamadi");
+  }
+  updateUi();
+}
+
+function clearMicrophone(removeFromPeers = true) {
+  if (!state.micStream) return;
+  const micTracks = state.micStream.getAudioTracks();
+  if (removeFromPeers) {
+    for (const pc of state.peers.values()) {
+      for (const sender of pc.getSenders()) {
+        if (sender.track && micTracks.includes(sender.track)) {
+          pc.removeTrack(sender);
+        }
+      }
+    }
+  }
+  if (state.localStream) {
+    for (const track of micTracks) {
+      state.localStream.removeTrack(track);
+    }
+  }
+  for (const track of micTracks) track.stop();
+  state.micStream = null;
+}
+
+async function toggleSelfCamera() {
+  if (state.selfCameraStream) {
+    clearSelfCamera();
+    setStatus("On kamera kapali");
+    updateUi();
+    return;
+  }
+  try {
+    state.selfCameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false
+    });
+    els.selfCamera.srcObject = state.selfCameraStream;
+    els.selfCamera.classList.add("live");
+    setStatus("On kamera acik");
+  } catch (error) {
+    setStatus(error.name === "NotAllowedError" ? "Kamera izni verilmedi" : "On kamera acilamadi");
+  }
+  updateUi();
+}
+
+function clearSelfCamera() {
+  if (state.selfCameraStream) {
+    for (const track of state.selfCameraStream.getTracks()) track.stop();
+  }
+  state.selfCameraStream = null;
+  els.selfCamera.pause();
+  els.selfCamera.removeAttribute("src");
+  els.selfCamera.srcObject = null;
+  els.selfCamera.load();
+  els.selfCamera.classList.remove("live");
 }
 
 function clearRemoteVideo() {
@@ -348,6 +459,142 @@ function clearRemoteVideo() {
   els.remoteVideo.srcObject = null;
   els.remoteVideo.load();
   els.remoteVideo.classList.remove("live");
+}
+
+function ensureRecordCanvas() {
+  const rect = els.board.getBoundingClientRect();
+  const width = Math.max(640, Math.round(rect.width));
+  const height = Math.max(360, Math.round(rect.height));
+  if (!state.recordCanvas) {
+    state.recordCanvas = document.createElement("canvas");
+    state.recordCtx = state.recordCanvas.getContext("2d");
+  }
+  state.recordCanvas.width = width;
+  state.recordCanvas.height = height;
+  return { width, height };
+}
+
+function drawContain(ctx, video, x, y, width, height) {
+  const sourceWidth = video.videoWidth || width;
+  const sourceHeight = video.videoHeight || height;
+  const scale = Math.min(width / sourceWidth, height / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const drawX = x + (width - drawWidth) / 2;
+  const drawY = y + (height - drawHeight) / 2;
+  ctx.fillStyle = "#111821";
+  ctx.fillRect(x, y, width, height);
+  ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+}
+
+function drawCover(ctx, video, x, y, width, height) {
+  const sourceWidth = video.videoWidth || width;
+  const sourceHeight = video.videoHeight || height;
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const cropWidth = width / scale;
+  const cropHeight = height / scale;
+  const cropX = (sourceWidth - cropWidth) / 2;
+  const cropY = (sourceHeight - cropHeight) / 2;
+  ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, x, y, width, height);
+}
+
+function drawRecordingFrame() {
+  if (!state.recorder || state.recorder.state !== "recording") return;
+  const { width, height } = ensureRecordCanvas();
+  const ctx = state.recordCtx;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  if (els.remoteVideo.srcObject && els.remoteVideo.readyState >= 2) {
+    drawContain(ctx, els.remoteVideo, 0, 0, width, height);
+  } else {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = "#edf2f8";
+    ctx.lineWidth = 1;
+    for (let x = 0; x < width; x += 28) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < height; y += 28) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+  }
+
+  ctx.drawImage(els.board, 0, 0, width, height);
+
+  if (state.selfCameraStream && els.selfCamera.readyState >= 2) {
+    const camWidth = Math.round(Math.min(220, width * 0.32));
+    const camHeight = Math.round(camWidth * 10 / 16);
+    const camX = 16;
+    const camY = height - camHeight - 16;
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+    ctx.fillRect(camX - 2, camY - 2, camWidth + 4, camHeight + 4);
+    drawCover(ctx, els.selfCamera, camX, camY, camWidth, camHeight);
+    ctx.restore();
+  }
+
+  state.recordFrame = requestAnimationFrame(drawRecordingFrame);
+}
+
+function downloadRecording() {
+  const blob = new Blob(state.recordChunks, { type: state.recordChunks[0]?.type || "video/webm" });
+  const link = document.createElement("a");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  link.href = URL.createObjectURL(blob);
+  link.download = `screenboard-${state.roomId || "recording"}-${stamp}.webm`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+async function toggleRecording() {
+  if (state.recorder?.state === "recording") {
+    state.recorder.stop();
+    cancelAnimationFrame(state.recordFrame);
+    setStatus("Kayit hazirlaniyor");
+    updateUi();
+    return;
+  }
+
+  try {
+    const { width, height } = ensureRecordCanvas();
+    const canvasStream = state.recordCanvas.captureStream(30);
+    const stream = new MediaStream(canvasStream.getVideoTracks());
+    if (state.micStream) {
+      for (const track of state.micStream.getAudioTracks()) stream.addTrack(track);
+    } else if (state.localStream) {
+      for (const track of state.localStream.getAudioTracks()) stream.addTrack(track);
+    }
+    state.recordChunks = [];
+    state.recorder = new MediaRecorder(stream, {
+      mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm"
+    });
+    state.recorder.ondataavailable = event => {
+      if (event.data && event.data.size > 0) state.recordChunks.push(event.data);
+    };
+    state.recorder.onstop = () => {
+      downloadRecording();
+      state.recorder = null;
+      setStatus(`Kayit indirildi (${width}x${height})`);
+      updateUi();
+    };
+    state.recorder.start(1000);
+    setStatus("Kayit basladi");
+    drawRecordingFrame();
+  } catch (error) {
+    state.recorder = null;
+    setStatus("Kayit baslatilamadi");
+  }
+  updateUi();
 }
 
 function resizeCanvas() {
@@ -452,6 +699,9 @@ els.startAirPlay.addEventListener("click", () => startShare("airplay"));
 els.startScreen.addEventListener("click", () => startShare("screen"));
 els.startCamera.addEventListener("click", () => startShare("camera"));
 els.stopShare.addEventListener("click", () => stopShare(true));
+els.toggleSelfCamera.addEventListener("click", toggleSelfCamera);
+els.toggleMicrophone.addEventListener("click", toggleMicrophone);
+els.toggleRecording.addEventListener("click", toggleRecording);
 
 els.toolPen.addEventListener("click", () => {
   state.tool = "pen";
