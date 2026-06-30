@@ -389,10 +389,10 @@ function applyJoin(roomId, role, joinData) {
   state.questions = Array.isArray(joinData.questions) ? joinData.questions : [];
   state.material = joinData.material || null;
   state.strokes = Array.isArray(joinData.board) ? joinData.board : [];
-  redraw();
   startPolling();
   setStatus(state.role === "presenter" ? "Oda kuruldu" : "Odaya katildin");
   updateUi();
+  requestAnimationFrame(resizeCanvas);
   postMessage({ type: state.role === "presenter" ? "presenter-online" : "viewer-ready", to: joinData.presenterId || null });
 }
 
@@ -1070,6 +1070,9 @@ function beginStroke(event) {
     setStatus("Izleyici cizimi kapali");
     event.preventDefault();
     return;
+  }
+  if (els.board.width <= 1 || els.board.height <= 1) {
+    resizeCanvas();
   }
   els.board.setPointerCapture(event.pointerId);
   const stroke = {
