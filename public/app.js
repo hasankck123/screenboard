@@ -25,6 +25,14 @@ const els = {
   materialInput: document.querySelector("#materialInput"),
   clearMaterial: document.querySelector("#clearMaterial"),
   materialName: document.querySelector("#materialName"),
+  materialControls: document.querySelector("#materialControls"),
+  imageSizeControl: document.querySelector("#imageSizeControl"),
+  materialScale: document.querySelector("#materialScale"),
+  materialScaleValue: document.querySelector("#materialScaleValue"),
+  pdfPageControl: document.querySelector("#pdfPageControl"),
+  prevPdfPage: document.querySelector("#prevPdfPage"),
+  pdfPageNumber: document.querySelector("#pdfPageNumber"),
+  nextPdfPage: document.querySelector("#nextPdfPage"),
   materialLayer: document.querySelector("#materialLayer"),
   materialImage: document.querySelector("#materialImage"),
   materialPdf: document.querySelector("#materialPdf"),
@@ -122,6 +130,12 @@ function normalizeName(value) {
 
 function normalizeTitle(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 64) || "Canli Ders";
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
 }
 
 function slugify(value) {
@@ -243,17 +257,29 @@ function renderMaterial() {
   els.materialImage.hidden = true;
   els.materialPdf.hidden = true;
   els.materialName.textContent = material ? material.name : "Materyal yok.";
+  els.materialControls.hidden = !material;
+  els.imageSizeControl.hidden = !material || material.type !== "image";
+  els.pdfPageControl.hidden = !material || material.type !== "pdf";
   if (!material) {
     els.materialImage.removeAttribute("src");
     els.materialPdf.removeAttribute("src");
+    els.materialLayer.style.removeProperty("--material-scale");
     return;
   }
+  const scale = clampNumber(material.scale, 40, 160, 100);
+  const page = Math.round(clampNumber(material.page, 1, 9999, 1));
+  els.materialScale.value = String(scale);
+  els.materialScaleValue.textContent = `${scale}%`;
+  els.pdfPageNumber.value = String(page);
   if (material.type === "image") {
-    els.materialImage.src = material.dataUrl;
+    els.materialLayer.style.setProperty("--material-scale", `${scale}%`);
+    if (els.materialImage.src !== material.dataUrl) els.materialImage.src = material.dataUrl;
     els.materialImage.hidden = false;
     els.materialPdf.removeAttribute("src");
   } else {
-    els.materialPdf.src = material.dataUrl;
+    els.materialLayer.style.removeProperty("--material-scale");
+    const pdfSrc = `${material.dataUrl}#page=${page}&zoom=page-fit`;
+    if (els.materialPdf.src !== pdfSrc) els.materialPdf.src = pdfSrc;
     els.materialPdf.hidden = false;
     els.materialImage.removeAttribute("src");
   }
@@ -288,6 +314,10 @@ function updateUi() {
   els.sendQuestion.disabled = !connected || !els.questionInput.value.trim();
   els.materialInput.disabled = !connected || !isPresenter;
   els.clearMaterial.disabled = !connected || !isPresenter || !state.material;
+  els.materialScale.disabled = !connected || !isPresenter || state.material?.type !== "image";
+  els.prevPdfPage.disabled = !connected || !isPresenter || state.material?.type !== "pdf" || Number(state.material?.page || 1) <= 1;
+  els.pdfPageNumber.disabled = !connected || !isPresenter || state.material?.type !== "pdf";
+  els.nextPdfPage.disabled = !connected || !isPresenter || state.material?.type !== "pdf";
   els.materialInput.closest(".material-panel").hidden = !isPresenter;
   els.topActions.hidden = connected && !isPresenter;
   els.viewerGreeting.hidden = !connected || isPresenter;
@@ -516,7 +546,9 @@ async function uploadMaterial() {
       material: {
         type: isPdf ? "pdf" : "image",
         name: file.name,
-        dataUrl
+        dataUrl,
+        scale: 100,
+        page: 1
       }
     });
     if (response?.material !== undefined) state.material = response.material;
@@ -526,6 +558,30 @@ async function uploadMaterial() {
   }
   els.materialInput.value = "";
   updateUi();
+}
+
+async function updateMaterialOptions(nextOptions) {
+  if (state.role !== "presenter" || !state.material) return;
+  state.material = { ...state.material, ...nextOptions };
+  updateUi();
+  const response = await postMessage({
+    type: "material-update",
+    options: nextOptions
+  });
+  if (response?.material) state.material = response.material;
+  updateUi();
+}
+
+function changeMaterialScale() {
+  if (state.material?.type !== "image") return;
+  const scale = clampNumber(els.materialScale.value, 40, 160, 100);
+  updateMaterialOptions({ scale });
+}
+
+function changePdfPage(nextPage) {
+  if (state.material?.type !== "pdf") return;
+  const page = Math.round(clampNumber(nextPage, 1, 9999, 1));
+  updateMaterialOptions({ page });
 }
 
 async function clearMaterial() {
@@ -890,10 +946,10 @@ function ensureRecordCanvas() {
   return { width, height };
 }
 
-function drawContain(ctx, video, x, y, width, height) {
+function drawContain(ctx, video, x, y, width, height, sizePercent = 100) {
   const sourceWidth = video.videoWidth || video.naturalWidth || width;
   const sourceHeight = video.videoHeight || video.naturalHeight || height;
-  const scale = Math.min(width / sourceWidth, height / sourceHeight);
+  const scale = Math.min(width / sourceWidth, height / sourceHeight) * (sizePercent / 100);
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
   const drawX = x + (width - drawWidth) / 2;
@@ -925,7 +981,7 @@ function drawRecordingFrame() {
   if (els.remoteVideo.srcObject && els.remoteVideo.readyState >= 2) {
     drawContain(ctx, els.remoteVideo, 0, 0, width, height);
   } else if (state.material?.type === "image" && els.materialImage.complete && els.materialImage.naturalWidth) {
-    drawContain(ctx, els.materialImage, 0, 0, width, height);
+    drawContain(ctx, els.materialImage, 0, 0, width, height, clampNumber(state.material.scale, 40, 160, 100));
   } else {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
@@ -1130,6 +1186,16 @@ els.questionInput.addEventListener("keydown", event => {
 });
 els.materialInput.addEventListener("change", uploadMaterial);
 els.clearMaterial.addEventListener("click", clearMaterial);
+els.materialScale.addEventListener("input", changeMaterialScale);
+els.prevPdfPage.addEventListener("click", () => changePdfPage(Number(state.material?.page || 1) - 1));
+els.nextPdfPage.addEventListener("click", () => changePdfPage(Number(state.material?.page || 1) + 1));
+els.pdfPageNumber.addEventListener("change", () => changePdfPage(els.pdfPageNumber.value));
+els.pdfPageNumber.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    changePdfPage(els.pdfPageNumber.value);
+  }
+});
 els.startAirPlay.addEventListener("click", () => startShare("airplay"));
 els.startScreen.addEventListener("click", () => startShare("screen"));
 els.stopShare.addEventListener("click", () => stopShare(true));
