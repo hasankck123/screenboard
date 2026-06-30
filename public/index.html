@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ScreenBoard</title>
+    <title>Canli Ders Platformu</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <section class="lobby-screen" id="lobbyScreen">
       <div class="lobby-shell">
         <div class="lobby-brand">
-          <img class="brand-logo" src="assets/kocak-logo.jpeg" alt="Kocak Education">
+          <div class="brand-mark" aria-hidden="true"></div>
           <div>
-            <h1>KOCAK EGITIM</h1>
+            <h1 class="brand-name"></h1>
             <p id="lobbyStatus">Hazir</p>
           </div>
         </div>
@@ -41,6 +41,7 @@
 
           <button id="createRoom" type="button">Oda Olustur</button>
           <button id="joinRoom" type="button" hidden>Odaya Katil</button>
+          <button id="openHelp" type="button" class="ghost-button">Nasil kullanilir?</button>
         </div>
       </div>
     </section>
@@ -48,9 +49,9 @@
     <main class="app hidden" id="appShell">
       <section class="side">
         <div class="brand">
-          <img class="brand-logo" src="assets/kocak-logo.jpeg" alt="Kocak Education">
+          <div class="brand-mark" aria-hidden="true"></div>
           <div>
-            <h1>KOCAK EGITIM</h1>
+            <h1 class="brand-name"></h1>
             <p id="statusText">Hazir</p>
           </div>
         </div>
@@ -112,6 +113,17 @@
             <button id="toolPointer" type="button" class="icon-tool" aria-label="Normal mouse" title="Normal mouse">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 3l11 8-5.2 1.1 3.2 6.2-3.4 1.7-3.1-6.1L5 17 6 3z"></path>
+              </svg>
+            </button>
+            <button id="toolLaser" type="button" class="icon-tool" aria-label="Lazer pointer" title="Lazer pointer">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v3"></path>
+                <path d="M12 18v3"></path>
+                <path d="M3 12h3"></path>
+                <path d="M18 12h3"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M7.8 7.8 5.7 5.7"></path>
+                <path d="m18.3 18.3-2.1-2.1"></path>
               </svg>
             </button>
             <button id="toolPen" type="button" class="active icon-tool" aria-label="Kalem" title="Kalem">
@@ -180,10 +192,49 @@
           <video id="remoteVideo" autoplay playsinline></video>
           <video id="selfCamera" autoplay muted playsinline></video>
           <div id="emptyState"></div>
+          <div id="laserPointer" class="laser-pointer" hidden></div>
           <canvas id="board"></canvas>
         </div>
       </section>
     </main>
+
+    <div class="help-modal" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="help-backdrop" id="closeHelpBackdrop"></div>
+      <section class="help-dialog">
+        <div class="help-header">
+          <div>
+            <p class="eyebrow">Kullanim rehberi</p>
+            <h2 id="helpTitle">Sistem nasil calisir?</h2>
+          </div>
+          <button id="closeHelp" type="button" aria-label="Kapat">Kapat</button>
+        </div>
+        <div class="help-content">
+          <h3>1. Oda olusturma</h3>
+          <p>Ogretmen giris ekraninda kullanici adini, ders basligini ve oda sifresini yazar. Oda olusturuldugunda sistem otomatik olarak ogretmeni sunucu yapar ve bir oda kodu uretir.</p>
+
+          <h3>2. Ogrenci katilimi</h3>
+          <p>Ogrenci oda kodunu, adini ve oda sifresini girerek derse katilir. Davet linki kullanilirsa oda kodu otomatik dolar; ogrenci sadece ad ve sifreyle baglanir.</p>
+
+          <h3>3. Yayin ve AirPlay</h3>
+          <p>Sunucu AirServer gibi bir alici uygulamayla tablet ekranini bilgisayara yansitabilir. Ardindan AirPlay veya ekran paylasimi butonuyla bu goruntu derse aktarilir.</p>
+
+          <h3>4. Beyaz tahta</h3>
+          <p>Kalem, silgi, kalinlik ve renk kontrolleriyle tahta uzerine cizim yapilir. Normal mouse modu PDF veya materyal uzerinde gezinmek icindir. Lazer pointer ise cizim yapmadan dikkat cekmek icin kullanilir.</p>
+
+          <h3>5. Akilli sekiller</h3>
+          <p>Daire, ucgen, kare, besgen veya yildiza benzeyen kapali cizimler otomatik olarak temiz geometrik sekillere donusturulur.</p>
+
+          <h3>6. Materyal ve PDF</h3>
+          <p>Sunucu PDF veya gorsel ekleyebilir. Gorsellerin boyutu ayarlanabilir. PDF sayfalari PDF goruntuleyicinin kendi kontrolleriyle degistirilir.</p>
+
+          <h3>7. Ogrenci etkilesimi</h3>
+          <p>Ogrenciler el kaldirabilir ve soru gonderebilir. Sunucu sorulari temizleyebilir, katilimcilari gorebilir ve gerekirse bir katilimciyi odadan cikarabilir.</p>
+
+          <h3>8. Kayit</h3>
+          <p>Sunucu mikrofon, on kamera, ekran/AirPlay goruntusu ve tahta ile ders kaydi alabilir. Kayit tamamlandiginda video dosyasi tarayici uzerinden indirilir.</p>
+        </div>
+      </section>
+    </div>
 
     <script src="app.js"></script>
   </body>

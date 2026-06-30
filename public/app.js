@@ -12,6 +12,10 @@ const els = {
   roomPassword: document.querySelector("#roomPassword"),
   createRoom: document.querySelector("#createRoom"),
   joinRoom: document.querySelector("#joinRoom"),
+  openHelp: document.querySelector("#openHelp"),
+  closeHelp: document.querySelector("#closeHelp"),
+  closeHelpBackdrop: document.querySelector("#closeHelpBackdrop"),
+  helpModal: document.querySelector("#helpModal"),
   copyInvite: document.querySelector("#copyInvite"),
   closeRoom: document.querySelector("#closeRoom"),
   sessionBadge: document.querySelector("#sessionBadge"),
@@ -48,9 +52,11 @@ const els = {
   mirrorState: document.querySelector("#mirrorState"),
   remoteVideo: document.querySelector("#remoteVideo"),
   selfCamera: document.querySelector("#selfCamera"),
+  laserPointer: document.querySelector("#laserPointer"),
   emptyState: document.querySelector("#emptyState"),
   board: document.querySelector("#board"),
   toolPointer: document.querySelector("#toolPointer"),
+  toolLaser: document.querySelector("#toolLaser"),
   toolPen: document.querySelector("#toolPen"),
   toolEraser: document.querySelector("#toolEraser"),
   penStyleButtons: [...document.querySelectorAll("[data-pen-style]")],
@@ -106,6 +112,9 @@ const state = {
   material: null,
   tool: "pen",
   penStyle: "fine",
+  laserActive: false,
+  laserSentAt: 0,
+  laserHideTimer: null,
   strokes: [],
   ownStrokes: [],
   activeStroke: null,
@@ -117,6 +126,14 @@ const ctx = els.board.getContext("2d", { willReadFrequently: false });
 function setStatus(text) {
   els.statusText.textContent = text;
   els.lobbyStatus.textContent = text;
+}
+
+function openHelpModal() {
+  els.helpModal.hidden = false;
+}
+
+function closeHelpModal() {
+  els.helpModal.hidden = true;
 }
 
 function normalizeRoom(value) {
@@ -358,6 +375,7 @@ function updateUi() {
   els.emptyState.classList.toggle("hidden", Boolean(els.remoteVideo.srcObject));
   els.board.classList.toggle("locked", state.drawingLocked && !isPresenter);
   els.board.classList.toggle("pointer-mode", state.tool === "pointer");
+  els.board.classList.toggle("laser-mode", state.tool === "laser");
   renderParticipants();
   renderQuestions();
   renderMaterial();
@@ -711,6 +729,14 @@ function handleEvent(message) {
   if (message.type === "material") {
     state.material = message.material || null;
     updateUi();
+  }
+  if (message.type === "laser") {
+    if (message.active === false) {
+      hideLaser(false);
+    } else if (message.point) {
+      showLaser(message.point);
+    }
+    return;
   }
   if (message.type === "participant-kicked") {
     if (message.to === clientId) leaveRoom("Odadan cikarildin");
@@ -1135,6 +1161,33 @@ function pointFor(event) {
   };
 }
 
+function showLaser(point) {
+  const rect = els.board.getBoundingClientRect();
+  els.laserPointer.hidden = false;
+  els.laserPointer.style.left = `${point.x * rect.width}px`;
+  els.laserPointer.style.top = `${point.y * rect.height}px`;
+  if (state.laserHideTimer) clearTimeout(state.laserHideTimer);
+  state.laserHideTimer = setTimeout(() => {
+    els.laserPointer.hidden = true;
+  }, 900);
+}
+
+function hideLaser(send = false) {
+  state.laserActive = false;
+  els.laserPointer.hidden = true;
+  if (state.laserHideTimer) clearTimeout(state.laserHideTimer);
+  state.laserHideTimer = null;
+  if (send) postMessage({ type: "laser", active: false });
+}
+
+function sendLaser(point, active = true, force = false) {
+  showLaser(point);
+  const now = performance.now();
+  if (!force && now - state.laserSentAt < 45) return;
+  state.laserSentAt = now;
+  postMessage({ type: "laser", active, point });
+}
+
 function pointToCanvas(point, rect) {
   return {
     x: point.x * rect.width,
@@ -1317,6 +1370,13 @@ function recognizeShape(stroke) {
 
 function beginStroke(event) {
   if (state.tool === "pointer") return;
+  if (state.tool === "laser") {
+    state.laserActive = true;
+    els.board.setPointerCapture(event.pointerId);
+    sendLaser(pointFor(event), true, true);
+    event.preventDefault();
+    return;
+  }
   if (state.drawingLocked && state.role !== "presenter") {
     setStatus("Izleyici cizimi kapali");
     event.preventDefault();
@@ -1340,6 +1400,11 @@ function beginStroke(event) {
 }
 
 function moveStroke(event) {
+  if (state.tool === "laser" && state.laserActive) {
+    sendLaser(pointFor(event), true);
+    event.preventDefault();
+    return;
+  }
   if (!state.activeStroke) return;
   state.activeStroke.points.push(pointFor(event));
   redraw();
@@ -1348,6 +1413,11 @@ function moveStroke(event) {
 }
 
 async function endStroke(event) {
+  if (state.tool === "laser" && state.laserActive) {
+    hideLaser(true);
+    event.preventDefault();
+    return;
+  }
   if (!state.activeStroke) return;
   const stroke = state.activeStroke;
   state.activeStroke = null;
@@ -1366,8 +1436,10 @@ async function endStroke(event) {
 }
 
 function setTool(tool) {
-  state.tool = ["pointer", "pen", "eraser"].includes(tool) ? tool : "pen";
+  if (state.tool === "laser" && tool !== "laser") hideLaser(true);
+  state.tool = ["pointer", "laser", "pen", "eraser"].includes(tool) ? tool : "pen";
   els.toolPointer.classList.toggle("active", state.tool === "pointer");
+  els.toolLaser.classList.toggle("active", state.tool === "laser");
   els.toolPen.classList.toggle("active", state.tool === "pen");
   els.toolEraser.classList.toggle("active", state.tool === "eraser");
   updateUi();
@@ -1383,6 +1455,12 @@ function setPenStyle(style) {
 
 els.createRoom.addEventListener("click", createRoom);
 els.joinRoom.addEventListener("click", () => connect("viewer"));
+els.openHelp.addEventListener("click", openHelpModal);
+els.closeHelp.addEventListener("click", closeHelpModal);
+els.closeHelpBackdrop.addEventListener("click", closeHelpModal);
+window.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !els.helpModal.hidden) closeHelpModal();
+});
 els.modeCreate.addEventListener("click", () => setLobbyMode("create"));
 els.modeJoin.addEventListener("click", () => setLobbyMode("join"));
 els.copyInvite.addEventListener("click", copyInviteLink);
@@ -1408,6 +1486,7 @@ els.toggleMicrophone.addEventListener("click", toggleMicrophone);
 els.toggleRecording.addEventListener("click", toggleRecording);
 
 els.toolPointer.addEventListener("click", () => setTool("pointer"));
+els.toolLaser.addEventListener("click", () => setTool("laser"));
 els.toolPen.addEventListener("click", () => setTool("pen"));
 els.toolEraser.addEventListener("click", () => setTool("eraser"));
 for (const button of els.penStyleButtons) {
