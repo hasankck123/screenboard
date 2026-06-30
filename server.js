@@ -3,6 +3,13 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+let Pool = null;
+
+try {
+  ({ Pool } = require("pg"));
+} catch (error) {
+  Pool = null;
+}
 
 const PORT = Number(process.env.PORT || 5177);
 const HTTPS_PORT = Number(process.env.HTTPS_PORT || 5443);
@@ -11,7 +18,164 @@ const ROOT = path.join(__dirname, "public");
 const CERT_PATH = path.join(__dirname, "certs", "screenboard-dev.pfx");
 const PRESENTER_PASSWORD = process.env.PRESENTER_PASSWORD || "1234";
 const MAX_PRESENTERS = Number(process.env.MAX_PRESENTERS || 2);
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+const DATABASE_URL = process.env.DATABASE_URL || "";
 const rooms = new Map();
+const pool = DATABASE_URL && Pool
+  ? new Pool({
+      connectionString: DATABASE_URL,
+      ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false }
+    })
+  : null;
+let dbReady = false;
+let dbError = pool ? "" : "DATABASE_URL tanimli degil";
+
+function base64url(input) {
+  return Buffer.from(input).toString("base64url");
+}
+
+function signSession(user) {
+  const payload = base64url(JSON.stringify({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.display_name,
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000
+  }));
+  const sig = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+function verifySession(token) {
+  const [payload, sig] = String(token || "").split(".");
+  if (!payload || !sig) return null;
+  const expected = crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+  if (Buffer.byteLength(sig) !== Buffer.byteLength(expected)) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (!data.exp || data.exp < Date.now()) return null;
+    return data;
+  } catch (error) {
+    return null;
+  }
+}
+
+function hashUserPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+  const hash = crypto.pbkdf2Sync(String(password), salt, 120000, 32, "sha256").toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyUserPassword(password, stored) {
+  const [salt, hash] = String(stored || "").split(":");
+  if (!salt || !hash) return false;
+  const current = hashUserPassword(password, salt).split(":")[1];
+  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(current));
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase().slice(0, 160);
+}
+
+function normalizeReferralCode(value) {
+  return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 32);
+}
+
+function publicUser(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.display_name,
+    role: user.role,
+    subscriptionStatus: user.subscription_status,
+    subscriptionExpiresAt: user.subscription_expires_at
+  };
+}
+
+function authToken(req) {
+  const header = req.headers.authorization || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1] : "";
+}
+
+async function query(sql, params = []) {
+  if (!pool || !dbReady) throw new Error(dbError || "Veritabani hazir degil");
+  return pool.query(sql, params);
+}
+
+async function authUser(req) {
+  const session = verifySession(authToken(req));
+  if (!session) return null;
+  const result = await query("select * from users where id = $1", [session.id]);
+  return result.rows[0] || null;
+}
+
+function hasTeacherAccess(user) {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  if (user.role !== "teacher") return false;
+  if (user.subscription_status !== "active") return false;
+  if (!user.subscription_expires_at) return true;
+  return new Date(user.subscription_expires_at).getTime() > Date.now();
+}
+
+function requireDb(res) {
+  if (dbReady) return true;
+  json(res, 503, { ok: false, error: dbError || "Veritabani bagli degil" });
+  return false;
+}
+
+async function initDatabase() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      create table if not exists users (
+        id text primary key,
+        email text unique not null,
+        display_name text not null,
+        password_hash text not null,
+        role text not null default 'teacher',
+        subscription_status text not null default 'active',
+        subscription_expires_at timestamptz,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+      create table if not exists referral_codes (
+        id text primary key,
+        code text unique not null,
+        max_uses integer not null default 1,
+        used_count integer not null default 0,
+        expires_at timestamptz,
+        active boolean not null default true,
+        created_by text,
+        created_at timestamptz not null default now()
+      );
+    `);
+    dbReady = true;
+    dbError = "";
+    const adminUsername = normalizeEmail(process.env.ADMIN_USERNAME || "admin");
+    const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || `${adminUsername}@dersflow.local`);
+    const adminPassword = String(process.env.ADMIN_PASSWORD || "");
+    const adminName = normalizeDisplayName(process.env.ADMIN_NAME || "Admin");
+    if (adminEmail && adminPassword.length >= 8) {
+      await pool.query(`
+        insert into users (id, email, display_name, password_hash, role, subscription_status)
+        values ($1, $2, $3, $4, 'admin', 'active')
+        on conflict (email) do update set
+          role = 'admin',
+          display_name = excluded.display_name,
+          password_hash = excluded.password_hash,
+          subscription_status = 'active',
+          updated_at = now()
+      `, [crypto.randomUUID(), adminEmail, adminName, hashUserPassword(adminPassword)]);
+    }
+  } catch (error) {
+    dbReady = false;
+    dbError = error.message;
+    console.error("Database init failed:", error.message);
+  }
+}
 
 function normalizeDisplayName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32) || "Misafir";
@@ -178,14 +342,237 @@ function handleRequest(req, res) {
     json(res, 200, {
       ok: true,
       rooms: rooms.size,
-      uptime: Math.round(process.uptime())
+      uptime: Math.round(process.uptime()),
+      database: dbReady ? "ready" : "not-ready"
     });
+    return undefined;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/register") {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const payload = await readBody(req);
+        const adminUsername = normalizeEmail(process.env.ADMIN_USERNAME || "admin");
+        const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || `${adminUsername}@dersflow.local`);
+        const loginName = normalizeEmail(payload.email || payload.username);
+        const email = loginName === adminUsername ? adminEmail : loginName;
+        const name = normalizeDisplayName(payload.name || payload.displayName);
+        const password = String(payload.password || "");
+        const code = normalizeReferralCode(payload.referralCode);
+        if (!email || !email.includes("@")) {
+          json(res, 400, { ok: false, error: "Gecerli e-posta gerekli" });
+          return;
+        }
+        if (password.length < 8) {
+          json(res, 400, { ok: false, error: "Sifre en az 8 karakter olmali" });
+          return;
+        }
+        if (!code) {
+          json(res, 400, { ok: false, error: "Referans kodu gerekli" });
+          return;
+        }
+        const client = await pool.connect();
+        try {
+          await client.query("begin");
+          const codeResult = await client.query("select * from referral_codes where code = $1 for update", [code]);
+          const referral = codeResult.rows[0];
+          const now = Date.now();
+          if (!referral || !referral.active) throw new Error("Referans kodu gecersiz");
+          if (referral.used_count >= referral.max_uses) throw new Error("Referans kodu kullanildi");
+          if (referral.expires_at && new Date(referral.expires_at).getTime() < now) throw new Error("Referans kodunun suresi dolmus");
+          const existing = await client.query("select id from users where email = $1", [email]);
+          if (existing.rows[0]) throw new Error("Bu e-posta zaten kayitli");
+          const id = crypto.randomUUID();
+          const expiresAt = new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
+          const userResult = await client.query(`
+            insert into users (id, email, display_name, password_hash, role, subscription_status, subscription_expires_at)
+            values ($1, $2, $3, $4, 'teacher', 'active', $5)
+            returning *
+          `, [id, email, name, hashUserPassword(password), expiresAt]);
+          await client.query("update referral_codes set used_count = used_count + 1 where id = $1", [referral.id]);
+          await client.query("commit");
+          const user = userResult.rows[0];
+          json(res, 200, { ok: true, user: publicUser(user), token: signSession(user) });
+        } catch (error) {
+          await client.query("rollback");
+          json(res, 400, { ok: false, error: error.message });
+        } finally {
+          client.release();
+        }
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
+    return undefined;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/login") {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const payload = await readBody(req);
+        const email = normalizeEmail(payload.email);
+        const password = String(payload.password || "");
+        const result = await query("select * from users where email = $1", [email]);
+        const user = result.rows[0];
+        if (!user || !verifyUserPassword(password, user.password_hash)) {
+          json(res, 403, { ok: false, error: "E-posta veya sifre hatali" });
+          return;
+        }
+        json(res, 200, { ok: true, user: publicUser(user), token: signSession(user) });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
+    return undefined;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/auth/me") {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const user = await authUser(req);
+        if (!user) {
+          json(res, 401, { ok: false, error: "Oturum bulunamadi" });
+          return;
+        }
+        json(res, 200, { ok: true, user: publicUser(user) });
+      } catch (error) {
+        json(res, 401, { ok: false, error: "Oturum gecersiz" });
+      }
+    })();
+    return undefined;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/metrics") {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const user = await authUser(req);
+        if (!user || user.role !== "admin") {
+          json(res, 403, { ok: false, error: "Admin yetkisi gerekli" });
+          return;
+        }
+        const memory = process.memoryUsage();
+        const activeRooms = [...rooms.entries()].map(([roomId, room]) => ({
+          roomId,
+          title: room.title,
+          participants: room.clients.size,
+          presenters: room.presenters.size,
+          boardItems: room.board.length,
+          questions: room.questions.length,
+          updatedAt: room.updatedAt
+        }));
+        const users = await query("select count(*)::int as total from users");
+        const teachers = await query("select count(*)::int as total from users where role = 'teacher'");
+        json(res, 200, {
+          ok: true,
+          database: dbReady ? "ready" : "not-ready",
+          uptime: Math.round(process.uptime()),
+          memory: {
+            rss: memory.rss,
+            heapUsed: memory.heapUsed,
+            heapTotal: memory.heapTotal
+          },
+          activeRoomCount: rooms.size,
+          activeRooms,
+          userCount: users.rows[0].total,
+          teacherCount: teachers.rows[0].total,
+          render: {
+            note: "Render CPU/RAM/bandwidth icin kesin limit takibi Render Dashboard uzerinden gorulur; burasi uygulama ici canli yuk ozetidir."
+          }
+        });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
+    return undefined;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/referral-codes") {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const user = await authUser(req);
+        if (!user || user.role !== "admin") {
+          json(res, 403, { ok: false, error: "Admin yetkisi gerekli" });
+          return;
+        }
+        const result = await query(`
+          select id, code, max_uses, used_count, expires_at, active, created_at
+          from referral_codes
+          order by created_at desc
+          limit 100
+        `);
+        json(res, 200, { ok: true, codes: result.rows });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
+    return undefined;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/referral-codes") {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const user = await authUser(req);
+        if (!user || user.role !== "admin") {
+          json(res, 403, { ok: false, error: "Admin yetkisi gerekli" });
+          return;
+        }
+        const payload = await readBody(req);
+        const code = normalizeReferralCode(payload.code) || crypto.randomBytes(4).toString("hex").toUpperCase();
+        const maxUses = Math.max(1, Math.min(500, Number(payload.maxUses || 1)));
+        const days = Math.max(1, Math.min(365, Number(payload.days || 30)));
+        const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+        const result = await query(`
+          insert into referral_codes (id, code, max_uses, expires_at, active, created_by)
+          values ($1, $2, $3, $4, true, $5)
+          returning id, code, max_uses, used_count, expires_at, active, created_at
+        `, [crypto.randomUUID(), code, maxUses, expiresAt, user.id]);
+        json(res, 200, { ok: true, code: result.rows[0] });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
+    return undefined;
+  }
+
+  const referralPatchMatch = url.pathname.match(/^\/api\/admin\/referral-codes\/([^/]+)$/i);
+  if (req.method === "PATCH" && referralPatchMatch) {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const user = await authUser(req);
+        if (!user || user.role !== "admin") {
+          json(res, 403, { ok: false, error: "Admin yetkisi gerekli" });
+          return;
+        }
+        const payload = await readBody(req);
+        const active = Boolean(payload.active);
+        const result = await query(`
+          update referral_codes set active = $1 where id = $2
+          returning id, code, max_uses, used_count, expires_at, active, created_at
+        `, [active, referralPatchMatch[1]]);
+        json(res, 200, { ok: true, code: result.rows[0] || null });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
     return undefined;
   }
 
   if (req.method === "POST" && url.pathname === "/api/rooms") {
     (async () => {
       try {
+        if (!requireDb(res)) return;
+        const user = await authUser(req);
+        if (!hasTeacherAccess(user)) {
+          json(res, 403, { ok: false, error: "Oda olusturmak icin aktif egitmen hesabi gerekli" });
+          return;
+        }
         const payload = await readBody(req);
         const clientId = String(payload.clientId || "");
         const password = String(payload.password || "");
@@ -732,6 +1119,8 @@ function handleRequest(req, res) {
 }
 
 const server = http.createServer(handleRequest);
+
+initDatabase();
 
 server.listen(PORT, "0.0.0.0", () => {
   const addresses = [];
