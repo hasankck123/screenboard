@@ -189,16 +189,15 @@ button:disabled {
   height: 48px;
   flex: 0 0 auto;
   border-radius: 8px;
-  border: 1px dashed #b9c5d4;
-  background: linear-gradient(180deg, #fff 0%, #f2f5f9 100%);
+  border: 0;
+  background: transparent;
   box-shadow: 0 8px 18px rgba(23, 33, 43, 0.08);
 }
 
 .brand-name {
-  min-width: 160px;
-  min-height: 24px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, #e9eef5 0%, #f7f9fc 100%);
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 900;
 }
 
 h1,
@@ -692,7 +691,9 @@ input[type="file"] {
 
 .stage {
   position: relative;
-  min-height: 420px;
+  min-height: 340px;
+  max-height: calc(100vh - 142px);
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid #bdc8d6;
   border-radius: 8px;
@@ -738,10 +739,10 @@ input[type="file"] {
 
 #selfCamera {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
+  left: 14px;
+  bottom: 14px;
   z-index: 2;
-  width: min(220px, 32%);
+  width: min(190px, 28%);
   aspect-ratio: 16 / 10;
   object-fit: cover;
   border: 2px solid rgba(255, 255, 255, 0.92);
@@ -786,7 +787,7 @@ input[type="file"] {
 }
 
 #board.laser-mode {
-  cursor: crosshair;
+  cursor: crosshair !important;
 }
 
 .laser-pointer {
@@ -821,7 +822,11 @@ input[type="file"] {
     0 0 18px rgba(239, 35, 60, 0.58);
   pointer-events: none;
   transform-origin: left center;
-  animation: laserTrailFade 620ms ease-out forwards;
+  opacity: 0.92;
+}
+
+.laser-trail-fade {
+  animation: laserTrailFade 5s ease-out forwards;
 }
 
 @keyframes laserTrailFade {

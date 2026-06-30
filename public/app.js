@@ -116,6 +116,7 @@ const state = {
   laserSentAt: 0,
   laserHideTimer: null,
   laserTrail: [],
+  laserFadeTimers: [],
   lastLaserPoint: null,
   strokes: [],
   ownStrokes: [],
@@ -1192,25 +1193,38 @@ function addLaserTrail(point, rect = els.board.getBoundingClientRect()) {
   trail.style.transform = `translateY(-50%) rotate(${Math.atan2(endY - startY, endX - startX)}rad)`;
   els.laserPointer.parentElement.append(trail);
   state.laserTrail.push(trail);
-  if (state.laserTrail.length > 28) {
+  if (state.laserTrail.length > 180) {
     const oldTrail = state.laserTrail.shift();
     oldTrail?.remove();
   }
-  window.setTimeout(() => {
-    trail.remove();
-    state.laserTrail = state.laserTrail.filter(item => item !== trail);
-  }, 620);
 }
 
 function clearLaserTrail() {
-  for (const dot of state.laserTrail) dot.remove();
+  for (const timer of state.laserFadeTimers) clearTimeout(timer);
+  state.laserFadeTimers = [];
+  for (const trail of state.laserTrail) trail.remove();
   state.laserTrail = [];
+}
+
+function fadeLaserTrail() {
+  for (const timer of state.laserFadeTimers) clearTimeout(timer);
+  state.laserFadeTimers = [];
+  const fading = [...state.laserTrail];
+  state.laserTrail = [];
+  for (const trail of fading) {
+    trail.classList.add("laser-trail-fade");
+    const timer = window.setTimeout(() => {
+      trail.remove();
+      state.laserFadeTimers = state.laserFadeTimers.filter(item => item !== timer);
+    }, 5000);
+    state.laserFadeTimers.push(timer);
+  }
 }
 
 function hideLaser(send = false) {
   state.laserActive = false;
   els.laserPointer.hidden = true;
-  clearLaserTrail();
+  fadeLaserTrail();
   state.lastLaserPoint = null;
   if (state.laserHideTimer) clearTimeout(state.laserHideTimer);
   state.laserHideTimer = null;
@@ -1411,6 +1425,7 @@ function beginStroke(event) {
     state.laserActive = true;
     els.board.setPointerCapture(event.pointerId);
     const point = pointFor(event);
+    clearLaserTrail();
     state.lastLaserPoint = null;
     showLaser(point);
     postMessage({ type: "laser", active: true, point });
