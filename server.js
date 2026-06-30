@@ -177,6 +177,26 @@ async function initDatabase() {
   }
 }
 
+async function ensureConfiguredAdmin() {
+  const adminUsername = normalizeEmail(process.env.ADMIN_USERNAME || "admin");
+  const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || `${adminUsername}@dersflow.local`);
+  const adminPassword = String(process.env.ADMIN_PASSWORD || "");
+  const adminName = normalizeDisplayName(process.env.ADMIN_NAME || "Admin");
+  if (!adminEmail || adminPassword.length < 8) return null;
+  const result = await query(`
+    insert into users (id, email, display_name, password_hash, role, subscription_status)
+    values ($1, $2, $3, $4, 'admin', 'active')
+    on conflict (email) do update set
+      role = 'admin',
+      display_name = excluded.display_name,
+      password_hash = excluded.password_hash,
+      subscription_status = 'active',
+      updated_at = now()
+    returning *
+  `, [crypto.randomUUID(), adminEmail, adminName, hashUserPassword(adminPassword)]);
+  return result.rows[0] || null;
+}
+
 function normalizeDisplayName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32) || "Misafir";
 }
@@ -412,10 +432,16 @@ function handleRequest(req, res) {
       try {
         if (!requireDb(res)) return;
         const payload = await readBody(req);
-        const email = normalizeEmail(payload.email);
+        const adminUsername = normalizeEmail(process.env.ADMIN_USERNAME || "admin");
+        const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || `${adminUsername}@dersflow.local`);
+        const loginName = normalizeEmail(payload.email || payload.username);
+        const email = loginName === adminUsername ? adminEmail : loginName;
         const password = String(payload.password || "");
-        const result = await query("select * from users where email = $1", [email]);
-        const user = result.rows[0];
+        let result = await query("select * from users where email = $1", [email]);
+        let user = result.rows[0];
+        if (!user && loginName === adminUsername && password === String(process.env.ADMIN_PASSWORD || "")) {
+          user = await ensureConfiguredAdmin();
+        }
         if (!user || !verifyUserPassword(password, user.password_hash)) {
           json(res, 403, { ok: false, error: "E-posta veya sifre hatali" });
           return;
