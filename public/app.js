@@ -53,6 +53,7 @@ const els = {
   remoteVideo: document.querySelector("#remoteVideo"),
   selfCamera: document.querySelector("#selfCamera"),
   laserPointer: document.querySelector("#laserPointer"),
+  laserCursor: document.querySelector("#laserCursor"),
   emptyState: document.querySelector("#emptyState"),
   board: document.querySelector("#board"),
   toolPointer: document.querySelector("#toolPointer"),
@@ -1166,14 +1167,20 @@ function pointFor(event) {
 
 function showLaser(point) {
   const rect = els.board.getBoundingClientRect();
+  const left = point.x * rect.width;
+  const top = point.y * rect.height;
   els.laserPointer.hidden = false;
-  els.laserPointer.style.left = `${point.x * rect.width}px`;
-  els.laserPointer.style.top = `${point.y * rect.height}px`;
+  els.laserPointer.style.left = `${left}px`;
+  els.laserPointer.style.top = `${top}px`;
+  els.laserCursor.hidden = false;
+  els.laserCursor.style.left = `${left}px`;
+  els.laserCursor.style.top = `${top}px`;
   addLaserTrail(point, rect);
   state.lastLaserPoint = point;
   if (state.laserHideTimer) clearTimeout(state.laserHideTimer);
   state.laserHideTimer = setTimeout(() => {
     els.laserPointer.hidden = true;
+    els.laserCursor.hidden = true;
   }, 900);
 }
 
@@ -1224,6 +1231,7 @@ function fadeLaserTrail() {
 function hideLaser(send = false) {
   state.laserActive = false;
   els.laserPointer.hidden = true;
+  els.laserCursor.hidden = true;
   fadeLaserTrail();
   state.lastLaserPoint = null;
   if (state.laserHideTimer) clearTimeout(state.laserHideTimer);

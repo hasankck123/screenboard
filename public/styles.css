@@ -787,7 +787,7 @@ input[type="file"] {
 }
 
 #board.laser-mode {
-  cursor: crosshair !important;
+  cursor: none !important;
 }
 
 .laser-pointer {
@@ -809,6 +809,82 @@ input[type="file"] {
     left 50ms linear,
     top 50ms linear,
     opacity 120ms ease;
+}
+
+.laser-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  width: 54px;
+  height: 24px;
+  pointer-events: none;
+  transform: translate(-6px, -22px) rotate(-34deg);
+  transform-origin: 6px 22px;
+  filter: drop-shadow(0 0 7px rgba(239, 35, 60, 0.62));
+  transition:
+    left 38ms linear,
+    top 38ms linear,
+    opacity 120ms ease;
+}
+
+.laser-cursor::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  bottom: 4px;
+  width: 12px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.28);
+}
+
+.laser-blade,
+.laser-hilt {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.laser-blade {
+  left: 17px;
+  top: 8px;
+  width: 34px;
+  height: 6px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.98), rgba(255, 206, 214, 0.95) 34%, rgba(239, 35, 60, 0.9));
+  box-shadow:
+    0 0 0 2px rgba(239, 35, 60, 0.12),
+    0 0 14px rgba(239, 35, 60, 0.72),
+    0 0 26px rgba(239, 35, 60, 0.42);
+}
+
+.laser-blade::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 1px;
+  width: 8px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 12px rgba(239, 35, 60, 0.72);
+}
+
+.laser-hilt {
+  left: 2px;
+  top: 6px;
+  width: 19px;
+  height: 10px;
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, #111827 0 28%, #e5e7eb 28% 44%, #475569 44% 100%);
+  border: 1px solid rgba(15, 23, 42, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 2px 5px rgba(15, 23, 42, 0.28);
 }
 
 .laser-trail {
