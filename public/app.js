@@ -505,6 +505,9 @@ async function createPresenterPeer(viewerId) {
   if (old) old.close();
   const pc = makePeer(viewerId);
   for (const track of state.localStream.getTracks()) pc.addTrack(track, state.localStream);
+  if (state.micStream) {
+    for (const track of state.micStream.getAudioTracks()) pc.addTrack(track, state.micStream);
+  }
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   await postMessage({ type: "offer", to: viewerId, offer });
@@ -551,11 +554,6 @@ async function startShare(kind) {
         audio: kind !== "airplay"
       })
       : await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-    if (state.micStream) {
-      for (const track of state.micStream.getAudioTracks()) {
-        state.localStream.addTrack(track);
-      }
-    }
     els.remoteVideo.srcObject = state.localStream;
     els.remoteVideo.muted = true;
     els.remoteVideo.classList.add("live");
@@ -572,10 +570,12 @@ async function startShare(kind) {
 
 function stopShare(notify = true) {
   if (state.localStream) {
-    for (const track of state.localStream.getTracks()) track.stop();
+    const micTracks = state.micStream ? state.micStream.getAudioTracks() : [];
+    for (const track of state.localStream.getTracks()) {
+      if (!micTracks.includes(track)) track.stop();
+    }
   }
   state.localStream = null;
-  clearMicrophone(false);
   if (state.role === "presenter") {
     clearRemoteVideo();
   }
@@ -604,9 +604,8 @@ async function toggleMicrophone() {
     });
     if (state.localStream) {
       for (const track of state.micStream.getAudioTracks()) {
-        state.localStream.addTrack(track);
         for (const pc of state.peers.values()) {
-          pc.addTrack(track, state.localStream);
+          pc.addTrack(track, state.micStream);
         }
       }
       await postMessage({ type: "presenter-online", to: null });
@@ -779,6 +778,13 @@ function downloadRecording() {
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
+function recordingMimeType(hasAudio) {
+  const types = hasAudio
+    ? ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "video/webm"]
+    : ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  return types.find(type => MediaRecorder.isTypeSupported(type)) || "";
+}
+
 async function toggleRecording() {
   if (state.recorder?.state === "recording") {
     state.recorder.stop();
@@ -792,17 +798,15 @@ async function toggleRecording() {
     const { width, height } = ensureRecordCanvas();
     const canvasStream = state.recordCanvas.captureStream(30);
     const stream = new MediaStream(canvasStream.getVideoTracks());
-    if (state.micStream) {
-      for (const track of state.micStream.getAudioTracks()) stream.addTrack(track);
-    } else if (state.localStream) {
-      for (const track of state.localStream.getAudioTracks()) stream.addTrack(track);
+    const micTracks = state.micStream
+      ? state.micStream.getAudioTracks().filter(track => track.readyState === "live" && track.enabled)
+      : [];
+    if (micTracks.length) {
+      for (const track of micTracks) stream.addTrack(track);
     }
     state.recordChunks = [];
-    state.recorder = new MediaRecorder(stream, {
-      mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm"
-    });
+    const mimeType = recordingMimeType(micTracks.length > 0);
+    state.recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     state.recorder.ondataavailable = event => {
       if (event.data && event.data.size > 0) state.recordChunks.push(event.data);
     };
@@ -813,7 +817,7 @@ async function toggleRecording() {
       updateUi();
     };
     state.recorder.start(1000);
-    setStatus("Kayit basladi");
+    setStatus(micTracks.length ? "Kayit basladi (mikrofonlu)" : "Kayit basladi (mikrofon kapali)");
     drawRecordingFrame();
   } catch (error) {
     state.recorder = null;
