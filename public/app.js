@@ -1,9 +1,12 @@
 const els = {
+  displayName: document.querySelector("#displayName"),
   roomCode: document.querySelector("#roomCode"),
-  presenterPassword: document.querySelector("#presenterPassword"),
+  roomPassword: document.querySelector("#roomPassword"),
   createRoom: document.querySelector("#createRoom"),
-  joinPresenter: document.querySelector("#joinPresenter"),
-  joinViewer: document.querySelector("#joinViewer"),
+  joinRoom: document.querySelector("#joinRoom"),
+  sessionBadge: document.querySelector("#sessionBadge"),
+  participantCount: document.querySelector("#participantCount"),
+  participantsList: document.querySelector("#participantsList"),
   startAirPlay: document.querySelector("#startAirPlay"),
   startScreen: document.querySelector("#startScreen"),
   startCamera: document.querySelector("#startCamera"),
@@ -67,6 +70,7 @@ const state = {
   recordFrame: 0,
   peers: new Map(),
   connectedPeers: new Set(),
+  participants: [],
   tool: "pen",
   strokes: [],
   ownStrokes: [],
@@ -84,11 +88,74 @@ function normalizeRoom(value) {
   return String(value || "").replace(/[^a-z0-9-]/gi, "").toUpperCase().slice(0, 16);
 }
 
+function normalizeName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32);
+}
+
+function requireLobbyFields(requireRoom) {
+  const displayName = normalizeName(els.displayName.value);
+  const password = els.roomPassword.value;
+  const roomId = normalizeRoom(els.roomCode.value);
+  if (!displayName) {
+    setStatus("Kullanici adi gerekli");
+    els.displayName.focus();
+    return null;
+  }
+  if (password.length < 4) {
+    setStatus("Oda sifresi en az 4 karakter olmali");
+    els.roomPassword.focus();
+    return null;
+  }
+  if (requireRoom && !roomId) {
+    setStatus("Oda kodu gerekli");
+    els.roomCode.focus();
+    return null;
+  }
+  return { displayName, password, roomId };
+}
+
+function renderParticipants() {
+  const participants = state.participants || [];
+  els.participantCount.textContent = `${participants.length} kisi`;
+  if (!participants.length) {
+    els.participantsList.innerHTML = "<span class=\"empty-participant\">Odaya girince burada gorunur.</span>";
+    return;
+  }
+  els.participantsList.replaceChildren(...participants.map(participant => {
+    const row = document.createElement("div");
+    row.className = "participant";
+    if (participant.clientId === clientId) row.classList.add("self");
+
+    const avatar = document.createElement("span");
+    avatar.className = "participant-avatar";
+    avatar.textContent = (participant.name || "M").slice(0, 1).toUpperCase();
+
+    const meta = document.createElement("span");
+    meta.className = "participant-meta";
+
+    const name = document.createElement("strong");
+    name.textContent = participant.clientId === clientId ? `${participant.name} (Sen)` : participant.name;
+
+    const role = document.createElement("small");
+    role.textContent = participant.role === "presenter" ? "Sunucu" : "Izleyici";
+
+    meta.append(name, role);
+    row.append(avatar, meta);
+    return row;
+  }));
+}
+
 function updateUi() {
   const connected = Boolean(state.roomId && (state.events || state.pollTimer));
   const isPresenter = state.role === "presenter";
   els.roomTitle.textContent = state.roomId ? `Oda ${state.roomId}` : "Oda yok";
   els.roleTitle.textContent = state.role ? (isPresenter ? "Sunucu" : "Izleyici") : "Baglanmadi";
+  els.sessionBadge.textContent = connected ? (isPresenter ? "Sunucu" : "Izleyici") : "Hazir";
+  els.roomCode.disabled = connected;
+  els.roomPassword.disabled = connected;
+  els.displayName.disabled = connected;
+  els.createRoom.disabled = connected;
+  els.joinRoom.disabled = connected;
   els.startAirPlay.disabled = !connected || !isPresenter;
   els.startScreen.disabled = !connected || !isPresenter;
   els.startCamera.disabled = !connected || !isPresenter;
@@ -110,6 +177,7 @@ function updateUi() {
   els.mirrorState.textContent = state.localStream || els.remoteVideo.srcObject ? "Yayin aktif" : "Yayin yok";
   els.emptyState.classList.toggle("hidden", Boolean(els.remoteVideo.srcObject));
   els.board.classList.toggle("locked", state.drawingLocked && !isPresenter);
+  renderParticipants();
 }
 
 async function postMessage(payload) {
@@ -143,6 +211,7 @@ function startPolling() {
       } else {
         state.cursor = Number(data.cursor || state.cursor);
         if (typeof data.drawingLocked === "boolean") state.drawingLocked = data.drawingLocked;
+        if (Array.isArray(data.participants)) state.participants = data.participants;
         for (const event of data.events || []) handleEvent(event);
         updateUi();
       }
@@ -154,44 +223,76 @@ function startPolling() {
   state.pollTimer = setTimeout(tick, 50);
 }
 
-async function connect(role) {
+function resetRoomState() {
+  if (state.events) state.events.close();
+  stopPolling();
+  for (const pc of state.peers.values()) pc.close();
+  state.peers.clear();
+  state.connectedPeers.clear();
+}
+
+function applyJoin(roomId, role, joinData) {
+  resetRoomState();
+  state.roomId = roomId;
+  state.role = joinData.role || role;
+  state.drawingLocked = Boolean(joinData.drawingLocked);
+  state.cursor = Number(joinData.cursor || 0);
+  state.participants = Array.isArray(joinData.participants) ? joinData.participants : [];
+  state.strokes = Array.isArray(joinData.board) ? joinData.board : [];
+  redraw();
+  startPolling();
+  setStatus(state.role === "presenter" ? "Oda kuruldu" : "Odaya katildin");
+  updateUi();
+  postMessage({ type: state.role === "presenter" ? "presenter-online" : "viewer-ready", to: joinData.presenterId || null });
+}
+
+async function createRoom() {
   try {
-    const roomId = normalizeRoom(els.roomCode.value);
-    if (!roomId) {
-      setStatus("Oda kodu gerekli");
-      return;
-    }
-    const password = els.presenterPassword.value;
-    if (role === "presenter" && !password) {
-      setStatus("Sunucu sifresi gerekli");
-      return;
-    }
-    setStatus(role === "presenter" ? "Sunucu girisi kontrol ediliyor" : "Izleyici baglaniyor");
-    const joinResponse = await fetch(`/api/rooms/${roomId}/join`, {
+    const fields = requireLobbyFields(false);
+    if (!fields) return;
+    setStatus("Oda olusturuluyor");
+    const response = await fetch("/api/rooms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId, role, password })
+      body: JSON.stringify({
+        clientId,
+        displayName: fields.displayName,
+        password: fields.password
+      })
+    });
+    const data = await response.json().catch(() => ({ ok: false, error: "Oda olusturulamadi" }));
+    if (!response.ok || !data.ok) {
+      setStatus(data.error || "Oda olusturulamadi");
+      return;
+    }
+    els.roomCode.value = data.roomId;
+    applyJoin(data.roomId, "presenter", data);
+  } catch (error) {
+    setStatus("Oda olusturulamadi");
+  }
+}
+
+async function connect(role = "viewer") {
+  try {
+    const fields = requireLobbyFields(true);
+    if (!fields) return;
+    setStatus("Odaya baglaniliyor");
+    const joinResponse = await fetch(`/api/rooms/${fields.roomId}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId,
+        role,
+        displayName: fields.displayName,
+        password: fields.password
+      })
     });
     const joinData = await joinResponse.json().catch(() => ({ ok: false, error: "Baglanti reddedildi" }));
     if (!joinResponse.ok || !joinData.ok) {
       setStatus(joinData.error || "Baglanti reddedildi");
       return;
     }
-    if (state.events) state.events.close();
-    stopPolling();
-    for (const pc of state.peers.values()) pc.close();
-    state.peers.clear();
-    state.connectedPeers.clear();
-    state.roomId = roomId;
-    state.role = role;
-    state.drawingLocked = Boolean(joinData.drawingLocked);
-    state.cursor = Number(joinData.cursor || 0);
-    state.strokes = Array.isArray(joinData.board) ? joinData.board : [];
-    redraw();
-    startPolling();
-    setStatus("Odaya bagli");
-    updateUi();
-    postMessage({ type: role === "presenter" ? "presenter-online" : "viewer-ready", to: joinData.presenterId || null });
+    applyJoin(fields.roomId, role, joinData);
   } catch (error) {
     setStatus("Baglanti kurulamadi");
   }
@@ -202,6 +303,7 @@ function handleEvent(message) {
   if (message.type === "snapshot") {
     state.strokes = Array.isArray(message.board) ? message.board : [];
     state.drawingLocked = Boolean(message.drawingLocked);
+    if (Array.isArray(message.participants)) state.participants = message.participants;
     redraw();
     if (state.role === "viewer" && message.presenterId) {
       postMessage({ type: "viewer-ready", to: message.presenterId });
@@ -212,6 +314,7 @@ function handleEvent(message) {
 
   if (message.type === "presence") {
     if (message.action === "leave") state.connectedPeers.delete(message.clientId);
+    if (Array.isArray(message.participants)) state.participants = message.participants;
     if (state.role === "viewer" && message.role === "presenter" && message.action === "join") {
       postMessage({ type: "viewer-ready", to: message.clientId });
     }
@@ -690,15 +793,8 @@ async function endStroke(event) {
   event.preventDefault();
 }
 
-els.createRoom.addEventListener("click", async () => {
-  const response = await fetch("/api/rooms", { method: "POST" });
-  const data = await response.json();
-  els.roomCode.value = data.roomId;
-  setStatus("Oda olusturuldu");
-});
-
-els.joinPresenter.addEventListener("click", () => connect("presenter"));
-els.joinViewer.addEventListener("click", () => connect("viewer"));
+els.createRoom.addEventListener("click", createRoom);
+els.joinRoom.addEventListener("click", () => connect("viewer"));
 els.startAirPlay.addEventListener("click", () => startShare("airplay"));
 els.startScreen.addEventListener("click", () => startShare("screen"));
 els.startCamera.addEventListener("click", () => startShare("camera"));

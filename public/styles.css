@@ -132,6 +132,7 @@ h1 {
 }
 
 .room-panel,
+.participants-panel,
 .share-panel,
 .tool-panel {
   display: grid;
@@ -143,6 +144,23 @@ h1 {
   box-shadow: 0 10px 22px rgba(23, 33, 43, 0.05);
 }
 
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-heading strong {
+  font-size: 14px;
+}
+
+.panel-heading span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
 label {
   font-size: 13px;
   font-weight: 700;
@@ -150,7 +168,6 @@ label {
 }
 
 .room-row,
-.role-grid,
 .share-panel,
 .tool-actions,
 .segmented {
@@ -162,7 +179,6 @@ label {
   grid-template-columns: 1fr auto;
 }
 
-.role-grid,
 .share-panel,
 .tool-actions,
 .segmented {
@@ -174,18 +190,7 @@ label {
 }
 
 input[type="text"],
-#roomCode {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  padding: 0 12px;
-  color: var(--ink);
-  text-transform: uppercase;
-  background: #fff;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
-}
-
+input:not([type]),
 input[type="password"] {
   width: 100%;
   min-height: 42px;
@@ -194,6 +199,11 @@ input[type="password"] {
   padding: 0 12px;
   color: var(--ink);
   background: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+#roomCode {
+  text-transform: uppercase;
 }
 
 input[type="color"] {
@@ -210,7 +220,7 @@ input[type="range"] {
 }
 
 #createRoom,
-#joinPresenter,
+#joinRoom,
 #startAirPlay,
 #startScreen,
 #startCamera {
@@ -221,13 +231,73 @@ input[type="range"] {
 }
 
 #createRoom:hover:not(:disabled),
-#joinPresenter:hover:not(:disabled),
+#joinRoom:hover:not(:disabled),
 #startAirPlay:hover:not(:disabled),
 #startScreen:hover:not(:disabled),
 #startCamera:hover:not(:disabled) {
   background: linear-gradient(180deg, #2869cb 0%, var(--primary-dark) 100%);
   border-color: var(--primary-dark);
   box-shadow: 0 12px 24px rgba(31, 99, 208, 0.26);
+}
+
+.participants-list {
+  display: grid;
+  gap: 8px;
+}
+
+.empty-participant {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.participant {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.82);
+}
+
+.participant.self {
+  border-color: rgba(31, 99, 208, 0.32);
+  background: var(--primary-soft);
+}
+
+.participant-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #141b24;
+  color: #fff;
+  font-weight: 800;
+}
+
+.participant-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.participant-meta strong,
+.participant-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.participant-meta strong {
+  font-size: 13px;
+}
+
+.participant-meta small {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 #stopShare,
@@ -420,7 +490,6 @@ input[type="range"] {
   }
 
   .room-row,
-  .role-grid,
   .share-panel,
   .tool-actions {
     grid-template-columns: 1fr;

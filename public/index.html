@@ -17,17 +17,30 @@
           </div>
         </div>
 
-        <div class="room-panel">
-          <label for="roomCode">Oda</label>
+        <div class="room-panel lobby-panel">
+          <div class="panel-heading">
+            <strong>Oturum</strong>
+            <span id="sessionBadge">Hazir</span>
+          </div>
+          <label for="displayName">Kullanici adi</label>
+          <input id="displayName" autocomplete="name" maxlength="32" placeholder="Ad Soyad">
+          <label for="roomPassword">Oda sifresi</label>
+          <input id="roomPassword" type="password" autocomplete="current-password" minlength="4" placeholder="En az 4 karakter">
+          <button id="createRoom" type="button">Oda Olustur</button>
+          <label for="roomCode">Oda kodu</label>
           <div class="room-row">
             <input id="roomCode" autocomplete="off" spellcheck="false" maxlength="16" placeholder="ODA KODU">
-            <button id="createRoom" type="button">Olustur</button>
+            <button id="joinRoom" type="button">Katil</button>
           </div>
-          <label for="presenterPassword">Sunucu sifresi</label>
-          <input id="presenterPassword" type="password" autocomplete="current-password" placeholder="Sadece sunucu icin">
-          <div class="role-grid">
-            <button id="joinPresenter" type="button">Sunucu</button>
-            <button id="joinViewer" type="button">Izleyici</button>
+        </div>
+
+        <div class="participants-panel">
+          <div class="panel-heading">
+            <strong>Katilanlar</strong>
+            <span id="participantCount">0 kisi</span>
+          </div>
+          <div id="participantsList" class="participants-list">
+            <span class="empty-participant">Odaya girince burada gorunur.</span>
           </div>
         </div>
 
