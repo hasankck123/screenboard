@@ -115,6 +115,7 @@ const state = {
   laserActive: false,
   laserSentAt: 0,
   laserHideTimer: null,
+  laserTrail: [],
   strokes: [],
   ownStrokes: [],
   activeStroke: null,
@@ -1166,15 +1167,39 @@ function showLaser(point) {
   els.laserPointer.hidden = false;
   els.laserPointer.style.left = `${point.x * rect.width}px`;
   els.laserPointer.style.top = `${point.y * rect.height}px`;
+  addLaserTrail(point, rect);
   if (state.laserHideTimer) clearTimeout(state.laserHideTimer);
   state.laserHideTimer = setTimeout(() => {
     els.laserPointer.hidden = true;
   }, 900);
 }
 
+function addLaserTrail(point, rect = els.board.getBoundingClientRect()) {
+  const dot = document.createElement("span");
+  dot.className = "laser-trail";
+  dot.style.left = `${point.x * rect.width}px`;
+  dot.style.top = `${point.y * rect.height}px`;
+  els.laserPointer.parentElement.append(dot);
+  state.laserTrail.push(dot);
+  if (state.laserTrail.length > 28) {
+    const oldDot = state.laserTrail.shift();
+    oldDot?.remove();
+  }
+  window.setTimeout(() => {
+    dot.remove();
+    state.laserTrail = state.laserTrail.filter(item => item !== dot);
+  }, 620);
+}
+
+function clearLaserTrail() {
+  for (const dot of state.laserTrail) dot.remove();
+  state.laserTrail = [];
+}
+
 function hideLaser(send = false) {
   state.laserActive = false;
   els.laserPointer.hidden = true;
+  clearLaserTrail();
   if (state.laserHideTimer) clearTimeout(state.laserHideTimer);
   state.laserHideTimer = null;
   if (send) postMessage({ type: "laser", active: false });

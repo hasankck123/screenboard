@@ -810,6 +810,32 @@ input[type="file"] {
     opacity 120ms ease;
 }
 
+.laser-trail {
+  position: absolute;
+  z-index: 4;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(239, 35, 60, 0.72);
+  box-shadow:
+    0 0 0 5px rgba(239, 35, 60, 0.10),
+    0 0 18px rgba(239, 35, 60, 0.45);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: laserTrailFade 620ms ease-out forwards;
+}
+
+@keyframes laserTrailFade {
+  from {
+    opacity: 0.82;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+}
+
 #emptyState {
   position: absolute;
   inset: 0;
