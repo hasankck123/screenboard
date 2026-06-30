@@ -1,4 +1,11 @@
 const els = {
+  appShell: document.querySelector("#appShell"),
+  lobbyScreen: document.querySelector("#lobbyScreen"),
+  lobbyStatus: document.querySelector("#lobbyStatus"),
+  modeCreate: document.querySelector("#modeCreate"),
+  modeJoin: document.querySelector("#modeJoin"),
+  createFields: document.querySelector("#createFields"),
+  joinFields: document.querySelector("#joinFields"),
   displayName: document.querySelector("#displayName"),
   lessonTitle: document.querySelector("#lessonTitle"),
   roomCode: document.querySelector("#roomCode"),
@@ -61,6 +68,7 @@ const state = {
   roomId: "",
   title: "Canli Ders",
   role: "",
+  lobbyMode: "create",
   source: null,
   events: null,
   pollTimer: null,
@@ -87,6 +95,7 @@ const ctx = els.board.getContext("2d", { willReadFrequently: false });
 
 function setStatus(text) {
   els.statusText.textContent = text;
+  els.lobbyStatus.textContent = text;
 }
 
 function normalizeRoom(value) {
@@ -109,6 +118,17 @@ function slugify(value) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48) || "screenboard";
+}
+
+function setLobbyMode(mode) {
+  state.lobbyMode = mode === "join" ? "join" : "create";
+  const isJoin = state.lobbyMode === "join";
+  els.modeCreate.classList.toggle("active", !isJoin);
+  els.modeJoin.classList.toggle("active", isJoin);
+  els.createFields.hidden = isJoin;
+  els.joinFields.hidden = !isJoin;
+  els.createRoom.hidden = isJoin;
+  els.joinRoom.hidden = !isJoin;
 }
 
 function requireLobbyFields(requireRoom) {
@@ -168,6 +188,8 @@ function renderParticipants() {
 function updateUi() {
   const connected = Boolean(state.roomId && (state.events || state.pollTimer));
   const isPresenter = state.role === "presenter";
+  els.lobbyScreen.classList.toggle("hidden", connected);
+  els.appShell.classList.toggle("hidden", !connected);
   els.roomTitle.textContent = state.roomId ? state.title : "Canli Ders";
   els.roleTitle.textContent = state.role
     ? `${isPresenter ? "Sunucu" : "Izleyici"} - Oda ${state.roomId}`
@@ -885,6 +907,8 @@ async function endStroke(event) {
 
 els.createRoom.addEventListener("click", createRoom);
 els.joinRoom.addEventListener("click", () => connect("viewer"));
+els.modeCreate.addEventListener("click", () => setLobbyMode("create"));
+els.modeJoin.addEventListener("click", () => setLobbyMode("join"));
 els.copyInvite.addEventListener("click", copyInviteLink);
 els.closeRoom.addEventListener("click", closeRoom);
 els.startAirPlay.addEventListener("click", () => startShare("airplay"));
@@ -949,7 +973,10 @@ window.addEventListener("resize", resizeCanvas);
 const initialRoom = normalizeRoom(new URLSearchParams(window.location.search).get("room"));
 if (initialRoom) {
   els.roomCode.value = initialRoom;
+  setLobbyMode("join");
   setStatus("Davet linki acildi");
+} else {
+  setLobbyMode("create");
 }
 
 resizeCanvas();

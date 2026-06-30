@@ -79,6 +79,73 @@ button:disabled {
   box-shadow: none;
 }
 
+.hidden {
+  display: none !important;
+}
+
+.lobby-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(#dfe7f1 1px, transparent 1px),
+    linear-gradient(90deg, #dfe7f1 1px, transparent 1px),
+    #eef3f8;
+  background-size: 32px 32px;
+}
+
+.lobby-shell {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 18px;
+}
+
+.lobby-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 4px;
+}
+
+.lobby-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(214, 221, 232, 0.95);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.lobby-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.lobby-tabs button {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lobby-tabs button.active {
+  border-color: var(--primary);
+  background: #fff;
+  color: var(--primary-dark);
+  box-shadow: 0 5px 16px rgba(31, 99, 208, 0.15);
+}
+
+.lobby-fields {
+  display: grid;
+  gap: 8px;
+}
+
 .app {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);

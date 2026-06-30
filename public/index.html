@@ -7,7 +7,45 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <main class="app">
+    <section class="lobby-screen" id="lobbyScreen">
+      <div class="lobby-shell">
+        <div class="lobby-brand">
+          <img class="brand-logo" src="assets/kocak-logo.jpeg" alt="Kocak Education">
+          <div>
+            <h1>ScreenBoard</h1>
+            <p id="lobbyStatus">Hazir</p>
+          </div>
+        </div>
+
+        <div class="lobby-card">
+          <div class="lobby-tabs" aria-label="Oturum modu">
+            <button id="modeCreate" type="button" class="active">Oda Olustur</button>
+            <button id="modeJoin" type="button">Odaya Katil</button>
+          </div>
+
+          <label for="displayName">Kullanici adi</label>
+          <input id="displayName" autocomplete="name" maxlength="32" placeholder="Ad Soyad">
+
+          <div id="createFields" class="lobby-fields">
+            <label for="lessonTitle">Ders basligi</label>
+            <input id="lessonTitle" maxlength="64" placeholder="Orn. TYT Matematik - Problemler">
+          </div>
+
+          <div id="joinFields" class="lobby-fields" hidden>
+            <label for="roomCode">Oda kodu</label>
+            <input id="roomCode" autocomplete="off" spellcheck="false" maxlength="16" placeholder="ODA KODU">
+          </div>
+
+          <label for="roomPassword">Oda sifresi</label>
+          <input id="roomPassword" type="password" autocomplete="current-password" minlength="4" placeholder="En az 4 karakter">
+
+          <button id="createRoom" type="button">Oda Olustur</button>
+          <button id="joinRoom" type="button" hidden>Odaya Katil</button>
+        </div>
+      </div>
+    </section>
+
+    <main class="app hidden" id="appShell">
       <section class="side">
         <div class="brand">
           <img class="brand-logo" src="assets/kocak-logo.jpeg" alt="Kocak Education">
@@ -17,22 +55,10 @@
           </div>
         </div>
 
-        <div class="room-panel lobby-panel">
+        <div class="room-panel session-panel">
           <div class="panel-heading">
             <strong>Oturum</strong>
             <span id="sessionBadge">Hazir</span>
-          </div>
-          <label for="displayName">Kullanici adi</label>
-          <input id="displayName" autocomplete="name" maxlength="32" placeholder="Ad Soyad">
-          <label for="lessonTitle">Ders basligi</label>
-          <input id="lessonTitle" maxlength="64" placeholder="Orn. TYT Matematik - Problemler">
-          <label for="roomPassword">Oda sifresi</label>
-          <input id="roomPassword" type="password" autocomplete="current-password" minlength="4" placeholder="En az 4 karakter">
-          <button id="createRoom" type="button">Oda Olustur</button>
-          <label for="roomCode">Oda kodu</label>
-          <div class="room-row">
-            <input id="roomCode" autocomplete="off" spellcheck="false" maxlength="16" placeholder="ODA KODU">
-            <button id="joinRoom" type="button">Katil</button>
           </div>
           <div class="room-controls">
             <button id="copyInvite" type="button" disabled>Davet Linki</button>
