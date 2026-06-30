@@ -1165,22 +1165,27 @@ function pointFor(event) {
   };
 }
 
-function showLaser(point) {
-  const rect = els.board.getBoundingClientRect();
+function positionLaserCursor(point, rect = els.board.getBoundingClientRect()) {
   const left = point.x * rect.width;
   const top = point.y * rect.height;
-  els.laserPointer.hidden = false;
-  els.laserPointer.style.left = `${left}px`;
-  els.laserPointer.style.top = `${top}px`;
   els.laserCursor.hidden = false;
   els.laserCursor.style.left = `${left}px`;
   els.laserCursor.style.top = `${top}px`;
+  return { left, top };
+}
+
+function showLaser(point) {
+  const rect = els.board.getBoundingClientRect();
+  const { left, top } = positionLaserCursor(point, rect);
+  els.laserPointer.hidden = false;
+  els.laserPointer.style.left = `${left}px`;
+  els.laserPointer.style.top = `${top}px`;
   addLaserTrail(point, rect);
   state.lastLaserPoint = point;
   if (state.laserHideTimer) clearTimeout(state.laserHideTimer);
   state.laserHideTimer = setTimeout(() => {
     els.laserPointer.hidden = true;
-    els.laserCursor.hidden = true;
+    if (!state.laserActive) els.laserCursor.hidden = true;
   }, 900);
 }
 
@@ -1245,6 +1250,16 @@ function sendLaser(point, active = true, force = false) {
   if (!force && now - state.laserSentAt < 45) return;
   state.laserSentAt = now;
   postMessage({ type: "laser", active, point });
+}
+
+function showLaserHover(event) {
+  if (state.tool !== "laser") return;
+  positionLaserCursor(pointFor(event));
+}
+
+function hideLaserHover() {
+  if (state.tool !== "laser" || state.laserActive) return;
+  els.laserCursor.hidden = true;
 }
 
 function pointToCanvas(point, rect) {
@@ -1464,8 +1479,13 @@ function beginStroke(event) {
 }
 
 function moveStroke(event) {
-  if (state.tool === "laser" && state.laserActive) {
-    sendLaser(pointFor(event), true);
+  if (state.tool === "laser") {
+    const point = pointFor(event);
+    if (state.laserActive) {
+      sendLaser(point, true);
+    } else {
+      positionLaserCursor(point);
+    }
     event.preventDefault();
     return;
   }
@@ -1592,9 +1612,11 @@ els.saveBoard.addEventListener("click", () => {
 });
 
 els.board.addEventListener("pointerdown", beginStroke);
+els.board.addEventListener("pointerenter", showLaserHover);
 els.board.addEventListener("pointermove", moveStroke);
 els.board.addEventListener("pointerup", endStroke);
 els.board.addEventListener("pointercancel", endStroke);
+els.board.addEventListener("pointerleave", hideLaserHover);
 window.addEventListener("resize", resizeCanvas);
 if ("ResizeObserver" in window) {
   const boardResizeObserver = new ResizeObserver(() => resizeCanvas());
