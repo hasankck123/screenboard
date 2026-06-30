@@ -81,6 +81,14 @@ function normalizeReferralCode(value) {
   return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 32);
 }
 
+function normalizeUsername(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 32);
+}
+
+function accountEmailFor(username) {
+  return `${username}@dersflow.local`;
+}
+
 function publicUser(user) {
   if (!user) return null;
   return {
@@ -375,13 +383,13 @@ function handleRequest(req, res) {
         const payload = await readBody(req);
         const adminUsername = normalizeEmail(process.env.ADMIN_USERNAME || "admin");
         const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || `${adminUsername}@dersflow.local`);
-        const loginName = normalizeEmail(payload.email || payload.username);
-        const email = loginName === adminUsername ? adminEmail : loginName;
-        const name = normalizeDisplayName(payload.name || payload.displayName);
+        const username = normalizeUsername(payload.username || payload.email);
+        const email = username === adminUsername ? adminEmail : accountEmailFor(username);
+        const name = normalizeDisplayName(payload.name || payload.displayName || username);
         const password = String(payload.password || "");
         const code = normalizeReferralCode(payload.referralCode);
-        if (!email || !email.includes("@")) {
-          json(res, 400, { ok: false, error: "Gecerli e-posta gerekli" });
+        if (username.length < 3) {
+          json(res, 400, { ok: false, error: "Kullanici adi en az 3 karakter olmali" });
           return;
         }
         if (password.length < 8) {
@@ -402,7 +410,7 @@ function handleRequest(req, res) {
           if (referral.used_count >= referral.max_uses) throw new Error("Referans kodu kullanildi");
           if (referral.expires_at && new Date(referral.expires_at).getTime() < now) throw new Error("Referans kodunun suresi dolmus");
           const existing = await client.query("select id from users where email = $1", [email]);
-          if (existing.rows[0]) throw new Error("Bu e-posta zaten kayitli");
+          if (existing.rows[0]) throw new Error("Bu kullanici adi zaten kayitli");
           const id = crypto.randomUUID();
           const expiresAt = new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
           const userResult = await client.query(`
@@ -434,16 +442,20 @@ function handleRequest(req, res) {
         const payload = await readBody(req);
         const adminUsername = normalizeEmail(process.env.ADMIN_USERNAME || "admin");
         const adminEmail = normalizeEmail(process.env.ADMIN_EMAIL || `${adminUsername}@dersflow.local`);
-        const loginName = normalizeEmail(payload.email || payload.username);
-        const email = loginName === adminUsername ? adminEmail : loginName;
+        const loginName = normalizeUsername(payload.username || payload.email);
+        const email = loginName === adminUsername ? adminEmail : accountEmailFor(loginName);
         const password = String(payload.password || "");
+        if (loginName.length < 3) {
+          json(res, 400, { ok: false, error: "Kullanici adi en az 3 karakter olmali" });
+          return;
+        }
         let result = await query("select * from users where email = $1", [email]);
         let user = result.rows[0];
         if (!user && loginName === adminUsername && password === String(process.env.ADMIN_PASSWORD || "")) {
           user = await ensureConfiguredAdmin();
         }
         if (!user || !verifyUserPassword(password, user.password_hash)) {
-          json(res, 403, { ok: false, error: "E-posta veya sifre hatali" });
+          json(res, 403, { ok: false, error: "Kullanici adi veya sifre hatali" });
           return;
         }
         json(res, 200, { ok: true, user: publicUser(user), token: signSession(user) });
