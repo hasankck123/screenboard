@@ -148,6 +148,7 @@ const state = {
   ownStrokes: [],
   activeStroke: null,
   activePointerId: null,
+  suppressTouchDrawing: false,
   drawingLocked: false
 };
 
@@ -1391,7 +1392,7 @@ function pointFor(event) {
 }
 
 function canDrawWithPointer(event) {
-  if (event.pointerType === "touch") return false;
+  if (event.pointerType === "touch" && state.suppressTouchDrawing) return false;
   if (event.isPrimary === false) return false;
   return true;
 }
@@ -1493,6 +1494,27 @@ function hideLaserHover(event) {
   if (event?.pointerType === "touch") return;
   if (state.tool !== "laser" || state.laserActive) return;
   els.laserCursor.hidden = true;
+}
+
+function cancelActivePointer() {
+  state.activeStroke = null;
+  state.activePointerId = null;
+  if (state.laserActive) hideLaser(true);
+  redraw();
+}
+
+function handleBoardTouchStart(event) {
+  if (event.touches.length > 1) {
+    state.suppressTouchDrawing = true;
+    cancelActivePointer();
+    event.preventDefault();
+  }
+}
+
+function handleBoardTouchEnd(event) {
+  if (event.touches.length === 0) {
+    state.suppressTouchDrawing = false;
+  }
 }
 
 function pointToCanvas(point, rect) {
@@ -1715,7 +1737,7 @@ function beginStroke(event) {
 }
 
 function moveStroke(event) {
-  if (event.pointerType === "touch") return;
+  if (event.pointerType === "touch" && state.suppressTouchDrawing) return;
   if (state.tool === "laser") {
     if (state.laserActive && state.activePointerId !== event.pointerId) return;
     const point = pointFor(event);
@@ -1736,7 +1758,6 @@ function moveStroke(event) {
 }
 
 async function endStroke(event) {
-  if (event.pointerType === "touch") return;
   if (state.activePointerId !== null && state.activePointerId !== event.pointerId) return;
   if (els.board.hasPointerCapture?.(event.pointerId)) {
     els.board.releasePointerCapture(event.pointerId);
@@ -1874,6 +1895,9 @@ els.board.addEventListener("pointermove", moveStroke);
 els.board.addEventListener("pointerup", endStroke);
 els.board.addEventListener("pointercancel", endStroke);
 els.board.addEventListener("pointerleave", hideLaserHover);
+els.board.addEventListener("touchstart", handleBoardTouchStart, { passive: false });
+els.board.addEventListener("touchend", handleBoardTouchEnd, { passive: false });
+els.board.addEventListener("touchcancel", handleBoardTouchEnd, { passive: false });
 els.board.addEventListener("dblclick", event => event.preventDefault());
 document.addEventListener("gesturestart", event => event.preventDefault());
 let lastTouchEndAt = 0;
