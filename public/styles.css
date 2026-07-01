@@ -251,6 +251,25 @@ button.requires-auth {
   color: var(--muted);
 }
 
+.admin-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.admin-row-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.admin-poster-tools {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-subtle);
+}
+
 .auth-popup {
   position: fixed;
   inset: 0;
@@ -909,7 +928,7 @@ input[type="file"] {
 
 #board {
   z-index: 3;
-  touch-action: none;
+  touch-action: pinch-zoom;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;

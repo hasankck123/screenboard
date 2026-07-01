@@ -2,14 +2,14 @@
 <html lang="tr">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>DersFlow</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <section class="lobby-screen" id="lobbyScreen">
       <aside class="lobby-ad lobby-ad-left" aria-label="DersFlow afis">
-        <img src="assets/dersflow-afis-sol.svg" alt="DersFlow ozellik afisi">
+        <img id="leftPoster" src="assets/dersflow-afis-sol.svg" alt="DersFlow ozellik afisi">
       </aside>
       <div class="lobby-shell">
         <div class="lobby-brand">
@@ -51,6 +51,14 @@
           </div>
           <div id="adminMetrics" class="admin-output">Sistem durumu yuklenmedi.</div>
           <div id="adminCodes" class="admin-output">Kod yok.</div>
+          <div class="admin-poster-tools">
+            <strong>Ana sayfa afisleri</strong>
+            <label class="file-button" for="leftPosterInput">Sol Afis Yukle</label>
+            <input id="leftPosterInput" type="file" accept="image/svg+xml,image/png,image/jpeg,image/webp">
+            <label class="file-button" for="rightPosterInput">Sag Afis Yukle</label>
+            <input id="rightPosterInput" type="file" accept="image/svg+xml,image/png,image/jpeg,image/webp">
+            <button id="savePosters" type="button">Afisleri Kaydet</button>
+          </div>
         </div>
 
         <div class="lobby-card" id="roomLobbyCard">
@@ -81,7 +89,7 @@
         </div>
       </div>
       <aside class="lobby-ad lobby-ad-right" aria-label="DersFlow afis">
-        <img src="assets/dersflow-afis.svg" alt="DersFlow abonelik afisi">
+        <img id="rightPoster" src="assets/dersflow-afis.svg" alt="DersFlow abonelik afisi">
       </aside>
     </section>
 

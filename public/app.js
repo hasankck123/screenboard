@@ -2,6 +2,8 @@ const els = {
   appShell: document.querySelector("#appShell"),
   lobbyScreen: document.querySelector("#lobbyScreen"),
   lobbyStatus: document.querySelector("#lobbyStatus"),
+  leftPoster: document.querySelector("#leftPoster"),
+  rightPoster: document.querySelector("#rightPoster"),
   modeCreate: document.querySelector("#modeCreate"),
   modeJoin: document.querySelector("#modeJoin"),
   createFields: document.querySelector("#createFields"),
@@ -37,6 +39,9 @@ const els = {
   refreshAdmin: document.querySelector("#refreshAdmin"),
   adminMetrics: document.querySelector("#adminMetrics"),
   adminCodes: document.querySelector("#adminCodes"),
+  leftPosterInput: document.querySelector("#leftPosterInput"),
+  rightPosterInput: document.querySelector("#rightPosterInput"),
+  savePosters: document.querySelector("#savePosters"),
   roomLobbyCard: document.querySelector("#roomLobbyCard"),
   copyInvite: document.querySelector("#copyInvite"),
   closeRoom: document.querySelector("#closeRoom"),
@@ -804,7 +809,14 @@ function renderAdminCodes(codes) {
     button.type = "button";
     button.textContent = code.active ? "Pasif" : "Aktif";
     button.addEventListener("click", () => toggleReferralCode(code.id, !code.active));
-    row.append(info, button);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Sil";
+    remove.addEventListener("click", () => deleteReferralCode(code.id));
+    const actions = document.createElement("span");
+    actions.className = "admin-row-actions";
+    actions.append(button, remove);
+    row.append(info, actions);
     return row;
   }));
 }
@@ -839,6 +851,57 @@ async function refreshAdminPanel() {
   }
 }
 
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve("");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Dosya okunamadi"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function loadPublicSettings() {
+  try {
+    const { data } = await apiRequest("/api/public/settings");
+    const settings = data.settings || {};
+    if (settings.leftPoster) els.leftPoster.src = settings.leftPoster;
+    if (settings.rightPoster) els.rightPoster.src = settings.rightPoster;
+  } catch (error) {
+    // Default afisler kullanilir.
+  }
+}
+
+async function savePosterSettings() {
+  try {
+    setStatus("Afisler yukleniyor");
+    const leftPoster = await fileToDataUrl(els.leftPosterInput.files[0]);
+    const rightPoster = await fileToDataUrl(els.rightPosterInput.files[0]);
+    if (!leftPoster && !rightPoster) {
+      setStatus("Once afis dosyasi sec");
+      return;
+    }
+    const { response, data } = await apiRequest("/api/admin/posters", {
+      method: "POST",
+      body: JSON.stringify({ leftPoster, rightPoster })
+    });
+    if (!response.ok || !data.ok) {
+      setStatus(data.error || "Afisler kaydedilemedi");
+      return;
+    }
+    if (leftPoster) els.leftPoster.src = leftPoster;
+    if (rightPoster) els.rightPoster.src = rightPoster;
+    els.leftPosterInput.value = "";
+    els.rightPosterInput.value = "";
+    setStatus("Afisler guncellendi");
+  } catch (error) {
+    setStatus("Afisler kaydedilemedi");
+  }
+}
+
 async function createReferralCode() {
   try {
     const { response, data } = await apiRequest("/api/admin/referral-codes", {
@@ -866,6 +929,11 @@ async function toggleReferralCode(id, active) {
     method: "PATCH",
     body: JSON.stringify({ active })
   });
+  refreshAdminPanel();
+}
+
+async function deleteReferralCode(id) {
+  await apiRequest(`/api/admin/referral-codes/${id}`, { method: "DELETE" });
   refreshAdminPanel();
 }
 
@@ -1078,7 +1146,10 @@ async function startShare(kind) {
       return;
     }
     if ((kind === "screen" || kind === "airplay") && !navigator.mediaDevices.getDisplayMedia) {
-      setStatus("Bu tarayici ekran paylasimini desteklemiyor");
+      const isiPadChrome = /CriOS/i.test(navigator.userAgent) && /iPad|Macintosh/i.test(navigator.userAgent);
+      setStatus(isiPadChrome
+        ? "iPad Chrome ekran paylasimini desteklemiyor; Safari veya AirServer kullan"
+        : "Bu tarayici ekran paylasimini desteklemiyor");
       return;
     }
     stopShare(false);
@@ -1817,6 +1888,7 @@ els.authPopupLogin.addEventListener("click", () => {
 });
 els.createReferralCode.addEventListener("click", createReferralCode);
 els.refreshAdmin.addEventListener("click", refreshAdminPanel);
+els.savePosters.addEventListener("click", savePosterSettings);
 els.openHelp.addEventListener("click", openHelpModal);
 els.closeHelp.addEventListener("click", closeHelpModal);
 els.closeHelpBackdrop.addEventListener("click", closeHelpModal);
@@ -1899,13 +1971,6 @@ els.board.addEventListener("touchstart", handleBoardTouchStart, { passive: false
 els.board.addEventListener("touchend", handleBoardTouchEnd, { passive: false });
 els.board.addEventListener("touchcancel", handleBoardTouchEnd, { passive: false });
 els.board.addEventListener("dblclick", event => event.preventDefault());
-document.addEventListener("gesturestart", event => event.preventDefault());
-let lastTouchEndAt = 0;
-document.addEventListener("touchend", event => {
-  const now = Date.now();
-  if (now - lastTouchEndAt < 320) event.preventDefault();
-  lastTouchEndAt = now;
-}, { passive: false });
 window.addEventListener("resize", resizeCanvas);
 if ("ResizeObserver" in window) {
   const boardResizeObserver = new ResizeObserver(() => resizeCanvas());
@@ -1923,4 +1988,5 @@ if (initialRoom) {
 
 resizeCanvas();
 updateUi();
+loadPublicSettings();
 loadAccount();
