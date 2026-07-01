@@ -159,6 +159,11 @@ async function initDatabase() {
         created_by text,
         created_at timestamptz not null default now()
       );
+      create table if not exists app_settings (
+        key text primary key,
+        value text not null,
+        updated_at timestamptz not null default now()
+      );
     `);
     dbReady = true;
     dbError = "";
@@ -376,6 +381,24 @@ function handleRequest(req, res) {
     return undefined;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/public/settings") {
+    (async () => {
+      try {
+        if (!dbReady) {
+          json(res, 200, { ok: true, settings: {} });
+          return;
+        }
+        const result = await query("select key, value from app_settings where key in ('leftPoster', 'rightPoster')");
+        const settings = {};
+        for (const row of result.rows) settings[row.key] = row.value;
+        json(res, 200, { ok: true, settings });
+      } catch (error) {
+        json(res, 200, { ok: true, settings: {} });
+      }
+    })();
+    return undefined;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/auth/register") {
     (async () => {
       try {
@@ -578,6 +601,45 @@ function handleRequest(req, res) {
     return undefined;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/posters") {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const user = await authUser(req);
+        if (!user || user.role !== "admin") {
+          json(res, 403, { ok: false, error: "Admin yetkisi gerekli" });
+          return;
+        }
+        const payload = await readBody(req);
+        const updates = [];
+        for (const key of ["leftPoster", "rightPoster"]) {
+          const value = String(payload[key] || "");
+          if (!value) continue;
+          if (!/^data:image\/(svg\+xml|png|jpeg|webp);base64,/i.test(value)) {
+            json(res, 400, { ok: false, error: "Sadece SVG, PNG, JPG veya WebP afis yuklenebilir" });
+            return;
+          }
+          if (value.length > 3_500_000) {
+            json(res, 413, { ok: false, error: "Afis dosyasi cok buyuk" });
+            return;
+          }
+          updates.push([key, value]);
+        }
+        for (const [key, value] of updates) {
+          await query(`
+            insert into app_settings (key, value, updated_at)
+            values ($1, $2, now())
+            on conflict (key) do update set value = excluded.value, updated_at = now()
+          `, [key, value]);
+        }
+        json(res, 200, { ok: true });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
+    return undefined;
+  }
+
   const referralPatchMatch = url.pathname.match(/^\/api\/admin\/referral-codes\/([^/]+)$/i);
   if (req.method === "PATCH" && referralPatchMatch) {
     (async () => {
@@ -595,6 +657,24 @@ function handleRequest(req, res) {
           returning id, code, max_uses, used_count, expires_at, active, created_at
         `, [active, referralPatchMatch[1]]);
         json(res, 200, { ok: true, code: result.rows[0] || null });
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message });
+      }
+    })();
+    return undefined;
+  }
+
+  if (req.method === "DELETE" && referralPatchMatch) {
+    (async () => {
+      try {
+        if (!requireDb(res)) return;
+        const user = await authUser(req);
+        if (!user || user.role !== "admin") {
+          json(res, 403, { ok: false, error: "Admin yetkisi gerekli" });
+          return;
+        }
+        await query("delete from referral_codes where id = $1", [referralPatchMatch[1]]);
+        json(res, 200, { ok: true });
       } catch (error) {
         json(res, 400, { ok: false, error: error.message });
       }
