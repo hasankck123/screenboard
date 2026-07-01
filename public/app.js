@@ -147,6 +147,7 @@ const state = {
   strokes: [],
   ownStrokes: [],
   activeStroke: null,
+  activePointerId: null,
   drawingLocked: false
 };
 
@@ -1389,6 +1390,12 @@ function pointFor(event) {
   };
 }
 
+function canDrawWithPointer(event) {
+  if (event.pointerType === "touch") return false;
+  if (event.isPrimary === false) return false;
+  return true;
+}
+
 function positionLaserCursor(point, rect = els.board.getBoundingClientRect()) {
   const left = point.x * rect.width;
   const top = point.y * rect.height;
@@ -1477,11 +1484,13 @@ function sendLaser(point, active = true, force = false) {
 }
 
 function showLaserHover(event) {
+  if (event.pointerType === "touch") return;
   if (state.tool !== "laser") return;
   positionLaserCursor(pointFor(event));
 }
 
-function hideLaserHover() {
+function hideLaserHover(event) {
+  if (event?.pointerType === "touch") return;
   if (state.tool !== "laser" || state.laserActive) return;
   els.laserCursor.hidden = true;
 }
@@ -1668,8 +1677,10 @@ function recognizeShape(stroke) {
 
 function beginStroke(event) {
   if (state.tool === "pointer") return;
+  if (!canDrawWithPointer(event)) return;
   if (state.tool === "laser") {
     state.laserActive = true;
+    state.activePointerId = event.pointerId;
     els.board.setPointerCapture(event.pointerId);
     const point = pointFor(event);
     clearLaserTrail();
@@ -1689,6 +1700,7 @@ function beginStroke(event) {
     resizeCanvas();
   }
   els.board.setPointerCapture(event.pointerId);
+  state.activePointerId = event.pointerId;
   const stroke = {
     id: makeId(),
     author: clientId,
@@ -1703,7 +1715,9 @@ function beginStroke(event) {
 }
 
 function moveStroke(event) {
+  if (event.pointerType === "touch") return;
   if (state.tool === "laser") {
+    if (state.laserActive && state.activePointerId !== event.pointerId) return;
     const point = pointFor(event);
     if (state.laserActive) {
       sendLaser(point, true);
@@ -1714,6 +1728,7 @@ function moveStroke(event) {
     return;
   }
   if (!state.activeStroke) return;
+  if (state.activePointerId !== event.pointerId) return;
   state.activeStroke.points.push(pointFor(event));
   redraw();
   drawStroke(state.activeStroke);
@@ -1721,7 +1736,13 @@ function moveStroke(event) {
 }
 
 async function endStroke(event) {
+  if (event.pointerType === "touch") return;
+  if (state.activePointerId !== null && state.activePointerId !== event.pointerId) return;
+  if (els.board.hasPointerCapture?.(event.pointerId)) {
+    els.board.releasePointerCapture(event.pointerId);
+  }
   if (state.tool === "laser" && state.laserActive) {
+    state.activePointerId = null;
     hideLaser(true);
     event.preventDefault();
     return;
@@ -1729,6 +1750,7 @@ async function endStroke(event) {
   if (!state.activeStroke) return;
   const stroke = state.activeStroke;
   state.activeStroke = null;
+  state.activePointerId = null;
   stroke.shape = recognizeShape(stroke);
   state.strokes.push(stroke);
   state.ownStrokes.push(stroke.id);
@@ -1852,6 +1874,14 @@ els.board.addEventListener("pointermove", moveStroke);
 els.board.addEventListener("pointerup", endStroke);
 els.board.addEventListener("pointercancel", endStroke);
 els.board.addEventListener("pointerleave", hideLaserHover);
+els.board.addEventListener("dblclick", event => event.preventDefault());
+document.addEventListener("gesturestart", event => event.preventDefault());
+let lastTouchEndAt = 0;
+document.addEventListener("touchend", event => {
+  const now = Date.now();
+  if (now - lastTouchEndAt < 320) event.preventDefault();
+  lastTouchEndAt = now;
+}, { passive: false });
 window.addEventListener("resize", resizeCanvas);
 if ("ResizeObserver" in window) {
   const boardResizeObserver = new ResizeObserver(() => resizeCanvas());
